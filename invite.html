@@ -84,7 +84,6 @@
   .hint { font-size: 12px; color: var(--n-500); font-weight: 400; }
 
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .grid2.big { gap: 12px; }
 
   .opt {
@@ -111,6 +110,12 @@
   textarea { resize: vertical; }
   label.field { display: block; margin-bottom: 16px; }
   label.field > span { display: block; margin-bottom: 4px; font-size: 13px; color: var(--n-700); }
+  /* 起訖站那一組在 grid 裡，下緣的 16px 由外層的 margin-top 統一給 */
+  .grid2 > label.field { margin-bottom: 0; }
+  .grid2 > label.field > span, .sub-label { font-size: 12.5px; color: var(--n-600); }
+  /* 勾選框：上面那條 `input { width:100% }` 會把它撐成一整條，得擋回來 */
+  label.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--n-800); }
+  label.check > input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
 
   .submit {
     display: block; width: 100%; border: 0; border-radius: var(--r-md);
@@ -198,9 +203,35 @@
             <button type="button" class="opt" id="claim-yes" aria-pressed="false" aria-label="交通費 請領">請領</button>
             <button type="button" class="opt" id="claim-no" aria-pressed="false" aria-label="交通費 不請領">不請領</button>
           </div>
-          <div id="claim-modes" hidden style="margin-top:8px">
-            <p style="margin:0 0 4px;font-size:12.5px;color:var(--n-600)">請領項目（可複選）</p>
-            <div class="grid3" id="modes"></div>
+          <!--
+            請領時才問，而且**依到院方式換欄位**（決策者 2026-09-18：
+            「到院方式選完，下面問交通費，又再選一次…要填的是起訖站吧」）。
+            高鐵／台鐵問起訖站＋要不要再轉計程車；自行開車只問出發地
+            （「就是來醫院了」，目的地不必問）；其他不多問（說明已在上一格）。
+          -->
+          <p id="claim-need-arrival" class="sub-label" hidden style="margin:8px 0 0">請先選到院方式</p>
+          <div id="claim-rail" hidden style="margin-top:8px">
+            <div class="grid2">
+              <label class="field">
+                <span>起站</span>
+                <input id="from-station" type="text" maxlength="40" aria-label="起站">
+              </label>
+              <label class="field">
+                <span>訖站</span>
+                <!-- 多半是台南，但**不預填**——在哪一站下車是他說了算 -->
+                <input id="to-station" type="text" maxlength="40" placeholder="台南" aria-label="訖站">
+              </label>
+            </div>
+            <label class="check">
+              <input type="checkbox" id="taxi-transfer" aria-label="另轉乘計程車到院">
+              另轉乘計程車到院
+            </label>
+          </div>
+          <div id="claim-car" hidden style="margin-top:8px">
+            <label class="field" style="margin-bottom:0">
+              <span class="sub-label">出發地</span>
+              <input id="origin" type="text" maxlength="80" placeholder="例：高雄市楠梓區" aria-label="出發地">
+            </label>
           </div>
         </fieldset>
       </div>
@@ -225,20 +256,20 @@
   var SUPABASE_URL = "https://qozsykfodmlpchxbwyaf.supabase.co";
   var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvenN5a2ZvZG1scGNoeGJ3eWFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NzQxMjEsImV4cCI6MjA4MzE1MDEyMX0._Vg2wG4dEQi_kjttm1bHsW3-rJHsdi_L6dU274-LvxM";
 
-  /* ── 選項常數：與 server/inviteReply.mjs 的 ARRIVAL_MODES／
-        TRANSPORT_CLAIM_MODES 逐字一致（改一邊要兩邊一起改）────────── */
+  /* ── 選項常數：與 server/inviteReply.mjs 的 ARRIVAL_MODES 逐字一致
+        （改一邊要兩邊一起改）──────────────────────────────────────── */
   var ARRIVAL = [
     { v: "hsr", label: "高鐵" },
     { v: "train", label: "台鐵" },
     { v: "car", label: "自行開車" },
     { v: "other", label: "其他" }
   ];
-  /* ⚠️ 與到院方式**不是同一組**：到院方式沒有「計程車」，請領項目沒有「自行開車」 */
-  var CLAIM = [
-    { v: "hsr", label: "高鐵" },
-    { v: "train", label: "台鐵" },
-    { v: "taxi", label: "計程車" }
-  ];
+  /* ⚠️ 請領項目（TRANSPORT_CLAIM_MODES）這一頁**不再問**（決策者 2026-09-18）：
+     到院方式選一次就夠，請領時改問起訖站／出發地，項目由後端依到院方式推。 */
+
+  /* 長度上限與 server/inviteReply.mjs、DB 函式 invite_public_reply 一致 */
+  var MAX_STATION = 40;
+  var MAX_ORIGIN = 80;
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -252,8 +283,14 @@
   var form = {
     willing: preset !== "no",
     mobile: "", address: "", arrival: "", arrivalNote: "",
-    claimTransport: false, transportModes: [], note: ""
+    claimTransport: false,
+    fromStation: "", toStation: "", origin: "", taxiTransfer: false,
+    note: ""
   };
+
+  /* 高鐵／台鐵＝問起訖站；自行開車＝只問出發地（目的地就是醫院） */
+  function isRail() { return form.arrival === "hsr" || form.arrival === "train"; }
+  function isCar() { return form.arrival === "car"; }
 
   /* ── 民國年＋星期：「民國 115 年 08 月 31 日（星期一）10:00」
         （與院內頁 InviteReplyPage.meetingText 同一條規則）────────── */
@@ -321,14 +358,17 @@
   }
 
   function paintClaim() {
-    $("claim-yes").setAttribute("aria-pressed", String(form.claimTransport === true));
+    var claim = form.claimTransport === true;
+    $("claim-yes").setAttribute("aria-pressed", String(claim));
     $("claim-no").setAttribute("aria-pressed", String(form.claimTransport === false));
-    show($("claim-modes"), form.claimTransport === true);
-    var box = $("modes");
-    for (var i = 0; i < box.children.length; i++) {
-      var b = box.children[i];
-      b.setAttribute("aria-pressed", String(form.transportModes.indexOf(b.dataset.value) >= 0));
-    }
+    // 請領了卻還沒選到院方式＝不知道要問什麼，先請他回去選（不是錯誤，只是提示）
+    show($("claim-need-arrival"), claim && !form.arrival);
+    show($("claim-rail"), claim && isRail());
+    show($("claim-car"), claim && isCar());
+    $("from-station").value = form.fromStation;
+    $("to-station").value = form.toStation;
+    $("origin").value = form.origin;
+    $("taxi-transfer").checked = form.taxiTransfer === true;
   }
 
   function paint() {
@@ -355,7 +395,7 @@
     show($("form"), true);
   }
 
-  /* ── 選項按鈕（到院方式與請領項目是資料生出來的，不寫死在 HTML 裡）─ */
+  /* ── 選項按鈕（到院方式是資料生出來的，不寫死在 HTML 裡）───────── */
   function buildOptions() {
     var arrival = $("arrival");
     ARRIVAL.forEach(function (opt) {
@@ -370,28 +410,15 @@
         // 再按一次取消選取（他可能只是誤觸）
         form.arrival = form.arrival === opt.v ? "" : opt.v;
         if (form.arrival !== "other") form.arrivalNote = "";
+        // 換方式就把不屬於新方式的欄位清掉（高鐵↔台鐵互換保留起訖站——
+        // 站名多半一樣，不要害他重打）
+        if (!isRail()) { form.fromStation = ""; form.toStation = ""; form.taxiTransfer = false; }
+        if (!isCar()) { form.origin = ""; }
         $("arrival-note").value = form.arrivalNote;
         paintArrival();
-      });
-      arrival.appendChild(b);
-    });
-
-    var modes = $("modes");
-    CLAIM.forEach(function (opt) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "opt";
-      b.textContent = opt.label;
-      b.dataset.value = opt.v;
-      b.setAttribute("aria-pressed", "false");
-      b.setAttribute("aria-label", "請領 " + opt.label);
-      b.addEventListener("click", function () {
-        var at = form.transportModes.indexOf(opt.v);
-        if (at >= 0) form.transportModes.splice(at, 1);
-        else form.transportModes.push(opt.v);
         paintClaim();
       });
-      modes.appendChild(b);
+      arrival.appendChild(b);
     });
   }
 
@@ -404,13 +431,20 @@
     });
     $("claim-no").addEventListener("click", function () {
       form.claimTransport = false;
-      // 說不請領就把勾選清掉，免得存下一份自相矛盾的資料
-      form.transportModes = [];
+      // 說不請領就把填過的起訖站清掉，免得存下一份自相矛盾的資料
+      form.fromStation = "";
+      form.toStation = "";
+      form.origin = "";
+      form.taxiTransfer = false;
       paintClaim();
     });
     $("mobile").addEventListener("input", function (e) { form.mobile = e.target.value; });
     $("address").addEventListener("input", function (e) { form.address = e.target.value; });
     $("arrival-note").addEventListener("input", function (e) { form.arrivalNote = e.target.value; });
+    $("from-station").addEventListener("input", function (e) { form.fromStation = e.target.value; });
+    $("to-station").addEventListener("input", function (e) { form.toStation = e.target.value; });
+    $("origin").addEventListener("input", function (e) { form.origin = e.target.value; });
+    $("taxi-transfer").addEventListener("change", function (e) { form.taxiTransfer = e.target.checked; });
     $("note").addEventListener("input", function (e) { form.note = e.target.value; });
     $("edit").addEventListener("click", showForm);
     $("submit").addEventListener("click", submit);
@@ -419,19 +453,37 @@
   function submit() {
     var btn = $("submit");
     var err = $("submit-error");
+    var claim = form.willing && form.claimTransport === true;
+
+    // 請領就得填得出核銷要的那一段路，不然承辦人還是得打電話問
+    if (claim && isRail() && !(form.fromStation.trim() && form.toStation.trim())) {
+      err.textContent = "請填寫起站與訖站";
+      show(err, true);
+      return;
+    }
+    if (claim && isCar() && !form.origin.trim()) {
+      err.textContent = "請填寫出發地";
+      show(err, true);
+      return;
+    }
+
     btn.disabled = true;
     btn.textContent = "送出中…";
     show(err, false);
 
+    /* 不願意時不送到院方式與交通費：那幾格根本沒展開，送出去只是雜訊。
+       **transportModes 不送**——由 DB 函式依到院方式推（只有一份規則）。 */
     var payload = {
       willing: form.willing,
       mobile: form.mobile,
       address: form.address,
-      // 不願意時不送到院方式與交通費：那幾格根本沒展開，送出去只是雜訊
       arrival: form.willing ? form.arrival : "",
-      arrivalNote: form.willing ? form.arrivalNote : "",
-      claimTransport: form.willing ? form.claimTransport : false,
-      transportModes: form.willing && form.claimTransport ? form.transportModes : [],
+      arrivalNote: form.willing && form.arrival === "other" ? form.arrivalNote : "",
+      claimTransport: claim,
+      fromStation: claim && isRail() ? form.fromStation.slice(0, MAX_STATION) : "",
+      toStation: claim && isRail() ? form.toStation.slice(0, MAX_STATION) : "",
+      origin: claim && isCar() ? form.origin.slice(0, MAX_ORIGIN) : "",
+      taxiTransfer: claim && isRail() && form.taxiTransfer === true,
       note: form.note
     };
 
@@ -483,10 +535,11 @@
         form.arrival = (previous && previous.arrival) || "";
         form.arrivalNote = (previous && previous.arrivalNote) || "";
         form.claimTransport = Boolean(previous && previous.claimTransport);
-        form.transportModes =
-          previous && Object.prototype.toString.call(previous.transportModes) === "[object Array]"
-            ? previous.transportModes.slice()
-            : [];
+        // 起訖站／出發地一併回填（改回覆的人不必重打）；舊資料沒有這幾個鍵就是空的
+        form.fromStation = (previous && previous.fromStation) || "";
+        form.toStation = (previous && previous.toStation) || "";
+        form.origin = (previous && previous.origin) || "";
+        form.taxiTransfer = Boolean(previous && previous.taxiTransfer);
         form.note = (previous && previous.note) || "";
 
         buildOptions();
