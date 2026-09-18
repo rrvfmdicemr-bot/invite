@@ -210,6 +210,8 @@
             （「就是來醫院了」，目的地不必問）；其他不多問（說明已在上一格）。
           -->
           <p id="claim-need-arrival" class="sub-label" hidden style="margin:8px 0 0">請先選到院方式</p>
+          <!-- 高鐵只有十二站：選高鐵時兩格掛這份清單（點一下就有下拉，仍可自己打）；台鐵站太多，維持自由輸入（決策者 2026-09-18） -->
+          <datalist id="hsr-stations"><option value="南港"></option><option value="台北"></option><option value="板橋"></option><option value="桃園"></option><option value="新竹"></option><option value="苗栗"></option><option value="台中"></option><option value="彰化"></option><option value="雲林"></option><option value="嘉義"></option><option value="台南"></option><option value="左營"></option></datalist>
           <div id="claim-rail" hidden style="margin-top:8px">
             <div class="grid2">
               <label class="field">
@@ -365,6 +367,11 @@
     show($("claim-need-arrival"), claim && !form.arrival);
     show($("claim-rail"), claim && isRail());
     show($("claim-car"), claim && isCar());
+    // 高鐵才掛站名清單（台鐵不掛）
+    ["from-station", "to-station"].forEach(function (id) {
+      if (form.arrival === "hsr") $(id).setAttribute("list", "hsr-stations");
+      else $(id).removeAttribute("list");
+    });
     $("from-station").value = form.fromStation;
     $("to-station").value = form.toStation;
     $("origin").value = form.origin;
