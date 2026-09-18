@@ -189,26 +189,31 @@
           <input id="address" type="text" maxlength="200" aria-label="信件聯絡地址">
         </label>
 
-        <fieldset>
-          <legend>預計到院方式</legend>
-          <div class="grid2" id="arrival"></div>
-          <div style="margin-top:8px" id="arrival-note-wrap" hidden>
-            <input id="arrival-note" type="text" maxlength="200" placeholder="請說明" aria-label="到院方式說明">
-          </div>
-        </fieldset>
-
+        <!--
+          **先問請不請領**（決策者 2026-09-18：「交通費請領不請領要先問，
+          不請領就直接不用往下選了。住在台南的委員一般是不請的。」）——
+          台南在地的委員按一下「不請領」就結束，底下整段不出現。
+        -->
         <fieldset>
           <legend>是否請領交通費 <span class="hint">（由 30 公里以外遠地前來者依規定支給）</span></legend>
           <div class="grid2">
             <button type="button" class="opt" id="claim-yes" aria-pressed="false" aria-label="交通費 請領">請領</button>
             <button type="button" class="opt" id="claim-no" aria-pressed="false" aria-label="交通費 不請領">不請領</button>
           </div>
-          <!--
-            請領時才問，而且**依到院方式換欄位**（決策者 2026-09-18：
-            「到院方式選完，下面問交通費，又再選一次…要填的是起訖站吧」）。
-            高鐵／台鐵問起訖站＋要不要再轉計程車；自行開車只問出發地
-            （「就是來醫院了」，目的地不必問）；其他不多問（說明已在上一格）。
-          -->
+        </fieldset>
+
+        <!--
+          請領時才問到院方式，而且**依到院方式換欄位**（決策者 2026-09-18：
+          「到院方式選完，下面問交通費，又再選一次…要填的是起訖站吧」）。
+          高鐵／台鐵問起訖站＋要不要再轉計程車；自行開車只問出發地
+          （「就是來醫院了」，目的地不必問）；其他不多問（說明已在方式那一格）。
+        -->
+        <fieldset id="claim-detail" hidden>
+          <legend>到院方式</legend>
+          <div class="grid2" id="arrival"></div>
+          <div style="margin-top:8px" id="arrival-note-wrap" hidden>
+            <input id="arrival-note" type="text" maxlength="200" placeholder="請說明" aria-label="到院方式說明">
+          </div>
           <p id="claim-need-arrival" class="sub-label" hidden style="margin:8px 0 0">請先選到院方式</p>
           <!-- 高鐵只有十二站：選高鐵時兩格掛這份清單（點一下就有下拉，仍可自己打）；台鐵站太多，維持自由輸入（決策者 2026-09-18） -->
           <datalist id="hsr-stations"><option value="南港"></option><option value="台北"></option><option value="板橋"></option><option value="桃園"></option><option value="新竹"></option><option value="苗栗"></option><option value="台中"></option><option value="彰化"></option><option value="雲林"></option><option value="嘉義"></option><option value="台南"></option><option value="左營"></option></datalist>
@@ -363,6 +368,8 @@
     var claim = form.claimTransport === true;
     $("claim-yes").setAttribute("aria-pressed", String(claim));
     $("claim-no").setAttribute("aria-pressed", String(form.claimTransport === false));
+    // 不請領＝整段交通問題到此為止（決策者 2026-09-18）
+    show($("claim-detail"), claim);
     // 請領了卻還沒選到院方式＝不知道要問什麼，先請他回去選（不是錯誤，只是提示）
     show($("claim-need-arrival"), claim && !form.arrival);
     show($("claim-rail"), claim && isRail());
@@ -438,11 +445,15 @@
     });
     $("claim-no").addEventListener("click", function () {
       form.claimTransport = false;
-      // 說不請領就把填過的起訖站清掉，免得存下一份自相矛盾的資料
+      // 說不請領就把到院方式與填過的起訖站一起清掉，免得存下一份自相矛盾的資料
+      form.arrival = "";
+      form.arrivalNote = "";
       form.fromStation = "";
       form.toStation = "";
       form.origin = "";
       form.taxiTransfer = false;
+      $("arrival-note").value = "";
+      paintArrival();
       paintClaim();
     });
     $("mobile").addEventListener("input", function (e) { form.mobile = e.target.value; });
@@ -462,6 +473,12 @@
     var err = $("submit-error");
     var claim = form.willing && form.claimTransport === true;
 
+    // 請領才有到院方式可言，而核銷要知道他怎麼來——沒選就擋下來
+    if (claim && !form.arrival) {
+      err.textContent = "請選擇到院方式";
+      show(err, true);
+      return;
+    }
     // 請領就得填得出核銷要的那一段路，不然承辦人還是得打電話問
     if (claim && isRail() && !(form.fromStation.trim() && form.toStation.trim())) {
       err.textContent = "請填寫起站與訖站";
@@ -478,14 +495,14 @@
     btn.textContent = "送出中…";
     show(err, false);
 
-    /* 不願意時不送到院方式與交通費：那幾格根本沒展開，送出去只是雜訊。
+    /* 不願意或不請領時不送到院方式：那幾格根本沒展開，送出去只是雜訊。
        **transportModes 不送**——由 DB 函式依到院方式推（只有一份規則）。 */
     var payload = {
       willing: form.willing,
       mobile: form.mobile,
       address: form.address,
-      arrival: form.willing ? form.arrival : "",
-      arrivalNote: form.willing && form.arrival === "other" ? form.arrivalNote : "",
+      arrival: claim ? form.arrival : "",
+      arrivalNote: claim && form.arrival === "other" ? form.arrivalNote : "",
       claimTransport: claim,
       fromStation: claim && isRail() ? form.fromStation.slice(0, MAX_STATION) : "",
       toStation: claim && isRail() ? form.toStation.slice(0, MAX_STATION) : "",
