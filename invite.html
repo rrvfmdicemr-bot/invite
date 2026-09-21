@@ -116,6 +116,20 @@
   /* 勾選框：上面那條 `input { width:100% }` 會把它撐成一整條，得擋回來 */
   label.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--n-800); }
   label.check > input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
+  /* 同意事項那一句會折行，勾選框要對齊第一行而不是整塊的中線 */
+  label.check.top { align-items: flex-start; }
+  label.check.top > input[type="checkbox"] { margin-top: 3px; }
+
+  /* 同意事項與本人確認（決策者 2026-09-21）：整段收進一個有底的框，
+     與上面的交通段分開——那是「填資料」，這一段是「他本人同意了什麼」。
+     版型與院內頁 InviteReplyPage.tsx 那一塊同構，數值待 design 收。 */
+  fieldset#consent {
+    border: 1px solid var(--n-200); background: var(--n-25);
+    border-radius: var(--r-md); padding: 12px;
+  }
+  fieldset#consent > legend { padding: 0 4px; }
+  ol.clauses { list-style: none; margin: 0; padding: 0; font-size: 12.5px; line-height: 1.7; color: var(--n-700); }
+  ol.clauses > li + li { margin-top: 6px; }
 
   .submit {
     display: block; width: 100%; border: 0; border-radius: var(--r-md);
@@ -241,6 +255,35 @@
             </label>
           </div>
         </fieldset>
+
+        <!--
+          **同意事項與本人確認**（決策者 2026-09-21：「意願調查表我們現在用線上的了，
+          要如何讓他確認是本人？」）——裁定：專屬連結＋親自輸入全名（須與名單相符）
+          ＋勾選同意＋紀錄回覆時間。
+
+          紙本 04 那張靠親筆簽名＋勾「並同意以下事項」三款成立，改線上之後三款不能
+          就這樣不見，所以搬到這裡：**選「願意」才展開（這一段在 #details 裡）、
+          必勾才送得出**。不克擔任的人整段不出現。
+
+          三款的字寫在下面的 CONSENT_CLAUSES（這一頁是單檔，import 不了院內頁那支
+          常數檔），與 src/components/Invite/consentClauses.ts、紙本樣稿
+          print_invitation_survey.txt 三處逐字相同——scripts/test-invite-reply.mjs 比對。
+        -->
+        <fieldset id="consent">
+          <legend class="strong">同意事項與本人確認</legend>
+          <ol class="clauses" id="consent-clauses"></ol>
+          <label class="check top">
+            <input type="checkbox" id="agreed" aria-label="本人願意擔任本案評選委員，並同意以上事項">
+            本人願意擔任本案評選委員，並同意以上事項
+          </label>
+          <label class="field" style="margin:12px 0 0">
+            <span>請輸入您的姓名（本人確認）</span>
+            <input id="signed-name" type="text" maxlength="40" autocomplete="name" aria-label="請輸入您的姓名（本人確認）">
+          </label>
+          <!-- 打了字卻對不起來才提示；空著不提示（還沒打完就跳紅字是在罵人） -->
+          <p class="err" id="name-mismatch" hidden style="margin:4px 0 0">輸入的姓名與受邀委員不符，請確認後再送出；如有疑問請聯繫承辦人</p>
+          <p class="sub-label" style="margin:8px 0 0">本回覆經由寄至您電子信箱之專屬連結送出，系統將記錄回覆時間，作為意願調查之紀錄。</p>
+        </fieldset>
       </div>
 
       <label class="field">
@@ -274,9 +317,27 @@
   /* ⚠️ 請領項目（TRANSPORT_CLAIM_MODES）這一頁**不再問**（決策者 2026-09-18）：
      到院方式選一次就夠，請領時改問起訖站／出發地，項目由後端依到院方式推。 */
 
+  /* ── 三款同意事項（決策者 2026-09-21）：**法條原文，一個字都不能動**。
+        正本在 src/memoTemplates/defaults/print_invitation_survey.txt 的【意願】段，
+        院內頁讀 src/components/Invite/consentClauses.ts，這一頁是第三份拷貝
+        （單檔靜態頁，沒有打包器）。三處由 scripts/test-invite-reply.mjs 逐字比對。
+        編號「1.」連同文字一起存：那是原文的一部分。────────────────── */
+  var CONSENT_CLAUSES = [
+    "1.同意依「採購評選委員會組織準則」第6條規定，委員名單於本委員會成立後公開於主管機關指定之資訊網站。",
+    "2.同意遵守「採購評選委員會審議規則」關於保密（第13條）及利益迴避（第14條、第14條之1）之規定。",
+    "3.本人目前並無《政府採購法》第15條第2項及「採購評選委員會審議規則」第14條第1項各款所定應行迴避之情形。"
+  ];
+
+  /* 三句擋關的話與 server/inviteReply.mjs 的 checkInviteConsent、
+     DB 函式 invite_public_reply 逐字相同（委員不該因為走哪條路而聽到不同的話） */
+  var ERR_NAME_BLANK = "請輸入您的姓名以確認本人回覆";
+  var ERR_NAME_MISMATCH = "輸入的姓名與受邀委員不符，請確認後再送出；如有疑問請聯繫承辦人";
+  var ERR_NOT_AGREED = "請勾選同意事項後再送出";
+
   /* 長度上限與 server/inviteReply.mjs、DB 函式 invite_public_reply 一致 */
   var MAX_STATION = 40;
   var MAX_ORIGIN = 80;
+  var MAX_SIGNED_NAME = 40;
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -292,12 +353,27 @@
     mobile: "", address: "", arrival: "", arrivalNote: "",
     claimTransport: false,
     fromStation: "", toStation: "", origin: "", taxiTransfer: false,
+    signedName: "", agreed: false,
     note: ""
   };
+
+  /* 名單上的姓名（invite_public_view 回的那個）——本人確認比對的就是它 */
+  var memberName = "";
 
   /* 高鐵／台鐵＝問起訖站；自行開車＝只問出發地（目的地就是醫院） */
   function isRail() { return form.arrival === "hsr" || form.arrival === "train"; }
   function isCar() { return form.arrival === "car"; }
+
+  /* 姓名比對去掉所有空白（含全形）：「王 大明」＝「王大明」。
+     名單上多半沒有空格，委員自己打字時卻常加一格——為了差一格把人擋在門外，
+     只會讓他打電話來。與 DB 函式、server/inviteReply.mjs 同一條規則。 */
+  function normalizeSignedName(value) {
+    return String(value == null ? "" : value).replace(/[\s　]/g, "");
+  }
+
+  function nameMatches() {
+    return normalizeSignedName(form.signedName) === normalizeSignedName(memberName);
+  }
 
   /* ── 民國年＋星期：「民國 115 年 08 月 31 日（星期一）10:00」
         （與院內頁 InviteReplyPage.meetingText 同一條規則）────────── */
@@ -385,6 +461,13 @@
     $("taxi-transfer").checked = form.taxiTransfer === true;
   }
 
+  /* 本人確認那一格：打了字卻與名單對不起來才提示（空著不提示） */
+  function paintConsent() {
+    $("signed-name").value = form.signedName;
+    $("agreed").checked = form.agreed === true;
+    show($("name-mismatch"), String(form.signedName).trim() !== "" && !nameMatches());
+  }
+
   function paint() {
     $("mobile").value = form.mobile;
     $("address").value = form.address;
@@ -393,6 +476,7 @@
     paintWilling();
     paintArrival();
     paintClaim();
+    paintConsent();
   }
 
   function showDone() {
@@ -411,6 +495,15 @@
 
   /* ── 選項按鈕（到院方式是資料生出來的，不寫死在 HTML 裡）───────── */
   function buildOptions() {
+    /* 三款同意事項也是資料生出來的：字只有 CONSENT_CLAUSES 一份，
+       HTML 裡再抄一次就等於這一頁自己有兩份法條 */
+    var clauses = $("consent-clauses");
+    CONSENT_CLAUSES.forEach(function (text) {
+      var li = document.createElement("li");
+      li.textContent = text;
+      clauses.appendChild(li);
+    });
+
     var arrival = $("arrival");
     ARRIVAL.forEach(function (opt) {
       var b = document.createElement("button");
@@ -463,6 +556,11 @@
     $("to-station").addEventListener("input", function (e) { form.toStation = e.target.value; });
     $("origin").addEventListener("input", function (e) { form.origin = e.target.value; });
     $("taxi-transfer").addEventListener("change", function (e) { form.taxiTransfer = e.target.checked; });
+    $("signed-name").addEventListener("input", function (e) {
+      form.signedName = e.target.value;
+      show($("name-mismatch"), String(form.signedName).trim() !== "" && !nameMatches());
+    });
+    $("agreed").addEventListener("change", function (e) { form.agreed = e.target.checked; });
     $("note").addEventListener("input", function (e) { form.note = e.target.value; });
     $("edit").addEventListener("click", showForm);
     $("submit").addEventListener("click", submit);
@@ -491,6 +589,25 @@
       return;
     }
 
+    /* 本人確認＋三款同意事項（決策者 2026-09-21）——**只有願意擔任才要求**。
+       這裡先擋是為了省一趟來回；擋不住的 DB 函式還會擋，兩邊講的話逐字相同。 */
+    var signed = String(form.signedName).trim();
+    if (form.willing && !signed) {
+      err.textContent = ERR_NAME_BLANK;
+      show(err, true);
+      return;
+    }
+    if (form.willing && !nameMatches()) {
+      err.textContent = ERR_NAME_MISMATCH;
+      show(err, true);
+      return;
+    }
+    if (form.willing && form.agreed !== true) {
+      err.textContent = ERR_NOT_AGREED;
+      show(err, true);
+      return;
+    }
+
     btn.disabled = true;
     btn.textContent = "送出中…";
     show(err, false);
@@ -508,6 +625,9 @@
       toStation: claim && isRail() ? form.toStation.slice(0, MAX_STATION) : "",
       origin: claim && isCar() ? form.origin.slice(0, MAX_ORIGIN) : "",
       taxiTransfer: claim && isRail() && form.taxiTransfer === true,
+      /* 不克擔任不必簽（紙本 04 也只有願意那一欄帶三款），送空的那一份 */
+      signedName: form.willing ? signed.slice(0, MAX_SIGNED_NAME) : "",
+      agreed: form.willing && form.agreed === true,
       note: form.note
     };
 
@@ -547,7 +667,8 @@
         if (!view || typeof view !== "object") throw new Error("not found");
 
         $("case-name").textContent = view.caseName || "";
-        $("member-name").textContent = view.memberName || "";
+        memberName = view.memberName || "";
+        $("member-name").textContent = memberName;
         fillRow($("dt-no"), $("case-no"), view.caseNumber || "");
         fillRow($("dt-meeting"), $("meeting"), meetingText(view.meetingAt));
         fillRow($("dt-venue"), $("venue"), view.venue || "");
@@ -564,6 +685,10 @@
         form.toStation = (previous && previous.toStation) || "";
         form.origin = (previous && previous.origin) || "";
         form.taxiTransfer = Boolean(previous && previous.taxiTransfer);
+        // 本人確認也一併回填（改回覆的人不必重打、重勾）；
+        // 2026-09-21 之前的舊回覆沒有這兩個鍵，回填就是空的＋沒勾
+        form.signedName = (previous && previous.signedName) || "";
+        form.agreed = Boolean(previous && previous.agreed);
         form.note = (previous && previous.note) || "";
 
         buildOptions();
