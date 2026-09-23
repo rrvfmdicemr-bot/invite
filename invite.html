@@ -297,26 +297,15 @@
         </label>
 
         <!--
-          **先問請不請領**（決策者 2026-09-18：「交通費請領不請領要先問，
-          不請領就直接不用往下選了。住在台南的委員一般是不請的。」）——
-          台南在地的委員按一下「不請領」就結束，底下整段不出現。
+          **交通方式與起迄**（決策者 2026-09-23：「我們應該要問的是從哪出發，
+          發包小組就是默認會給交通費了。就是交通方式跟起迄點」）——推翻
+          2026-09-18「先問請不請領」：不再問委員要不要請領，送出時
+          `claimTransport` 固定為 `true`，依到院方式換欄位——高鐵／台鐵問
+          起訖站＋要不要再轉計程車；自行開車只問出發地（「就是來醫院了」，
+          目的地不必問）；其他不多問（說明已在方式那一格）。
         -->
-        <fieldset>
-          <legend>是否請領交通費 <span class="hint">（由 30 公里以外遠地前來者依規定支給）</span></legend>
-          <div class="grid2">
-            <button type="button" class="opt" id="claim-yes" aria-pressed="false" aria-label="交通費 請領">請領</button>
-            <button type="button" class="opt" id="claim-no" aria-pressed="false" aria-label="交通費 不請領">不請領</button>
-          </div>
-        </fieldset>
-
-        <!--
-          請領時才問到院方式，而且**依到院方式換欄位**（決策者 2026-09-18：
-          「到院方式選完，下面問交通費，又再選一次…要填的是起訖站吧」）。
-          高鐵／台鐵問起訖站＋要不要再轉計程車；自行開車只問出發地
-          （「就是來醫院了」，目的地不必問）；其他不多問（說明已在方式那一格）。
-        -->
-        <fieldset id="claim-detail" hidden>
-          <legend>到院方式</legend>
+        <fieldset id="claim-detail">
+          <legend>交通方式與起迄 <span class="hint">（交通費依規定支給）</span></legend>
           <div class="grid2" id="arrival"></div>
           <div style="margin-top:8px" id="arrival-note-wrap" hidden>
             <input id="arrival-note" type="text" maxlength="200" placeholder="請說明" aria-label="到院方式說明">
@@ -340,6 +329,7 @@
               <input type="checkbox" id="taxi-transfer" aria-label="另轉乘計程車到院">
               另轉乘計程車到院
             </label>
+            <p class="sub-label" style="margin:4px 0 0">計程車費請向司機索取收據，憑收據實支實付。</p>
           </div>
           <div id="claim-car" hidden style="margin-top:8px">
             <label class="field" style="margin-bottom:0">
@@ -386,7 +376,9 @@
     { v: "other", label: "其他" }
   ];
   /* ⚠️ 請領項目（TRANSPORT_CLAIM_MODES）這一頁**不再問**（決策者 2026-09-18）：
-     到院方式選一次就夠，請領時改問起訖站／出發地，項目由後端依到院方式推。 */
+     到院方式選一次就夠，項目由後端依到院方式推。
+     ⚠️ 「是否請領交通費」那一題也不再問（決策者 2026-09-23，推翻
+     2026-09-18「先問請不請領」）：送出時 claimTransport 固定為 true。 */
 
   /* ── 三款同意事項（決策者 2026-09-21）：**法條原文，一個字都不能動**。
         正本在 src/memoTemplates/defaults/print_invitation_survey.txt 的【意願】段，
@@ -431,7 +423,9 @@
   var form = {
     willing: presetWilling(),
     mobile: "", address: "", arrival: "", arrivalNote: "",
-    claimTransport: false,
+    // 畫面上已經沒有「是否請領交通費」那一題（決策者 2026-09-23）——
+    // 這個鍵只是送出 payload 時固定填 true，不再由這裡的值決定畫面
+    claimTransport: true,
     fromStation: "", toStation: "", origin: "", taxiTransfer: false,
     signedName: "", agreed: false,
     note: ""
@@ -560,16 +554,16 @@
     show($("arrival-note-wrap"), form.arrival === "other");
   }
 
-  function paintClaim() {
-    var claim = form.claimTransport === true;
-    $("claim-yes").setAttribute("aria-pressed", String(claim));
-    $("claim-no").setAttribute("aria-pressed", String(form.claimTransport === false));
-    // 不請領＝整段交通問題到此為止（決策者 2026-09-18）
-    show($("claim-detail"), claim);
-    // 請領了卻還沒選到院方式＝不知道要問什麼，先請他回去選（不是錯誤，只是提示）
-    show($("claim-need-arrival"), claim && !form.arrival);
-    show($("claim-rail"), claim && isRail());
-    show($("claim-car"), claim && isCar());
+  /*
+    「是否請領交通費」那一題已拿掉（決策者 2026-09-23，推翻 2026-09-18
+    「先問請不請領」）——願意擔任就直接問到院方式，不再有 claim-yes／
+    claim-no 兩顆鈕，#claim-detail 整段只跟著 #details 一起顯示／隱藏。
+  */
+  function paintArrivalDetail() {
+    // 還沒選到院方式＝不知道要問什麼，先請他回去選（不是錯誤，只是提示）
+    show($("claim-need-arrival"), !form.arrival);
+    show($("claim-rail"), isRail());
+    show($("claim-car"), isCar());
     // 高鐵才掛站名清單（台鐵不掛）
     ["from-station", "to-station"].forEach(function (id) {
       if (form.arrival === "hsr") $(id).setAttribute("list", "hsr-stations");
@@ -595,7 +589,7 @@
     $("note").value = form.note;
     paintWilling();
     paintArrival();
-    paintClaim();
+    paintArrivalDetail();
     paintConsent();
   }
 
@@ -647,7 +641,7 @@
         if (!isCar()) { form.origin = ""; }
         $("arrival-note").value = form.arrivalNote;
         paintArrival();
-        paintClaim();
+        paintArrivalDetail();
       });
       arrival.appendChild(b);
     });
@@ -656,23 +650,6 @@
   function bind() {
     $("willing-yes").addEventListener("click", function () { form.willing = true; paintWilling(); });
     $("willing-no").addEventListener("click", function () { form.willing = false; paintWilling(); });
-    $("claim-yes").addEventListener("click", function () {
-      form.claimTransport = true;
-      paintClaim();
-    });
-    $("claim-no").addEventListener("click", function () {
-      form.claimTransport = false;
-      // 說不請領就把到院方式與填過的起訖站一起清掉，免得存下一份自相矛盾的資料
-      form.arrival = "";
-      form.arrivalNote = "";
-      form.fromStation = "";
-      form.toStation = "";
-      form.origin = "";
-      form.taxiTransfer = false;
-      $("arrival-note").value = "";
-      paintArrival();
-      paintClaim();
-    });
     $("mobile").addEventListener("input", function (e) { form.mobile = e.target.value; });
     $("address").addEventListener("input", function (e) { form.address = e.target.value; });
     $("arrival-note").addEventListener("input", function (e) { form.arrivalNote = e.target.value; });
@@ -695,21 +672,23 @@
     var err = $("submit-error");
     // 沒選就沒有送出鈕（#tail 整塊 hidden），這裡只是收口
     if (form.willing === null) return;
-    var claim = form.willing && form.claimTransport === true;
+    // 「是否請領交通費」那一題已拿掉（決策者 2026-09-23）——願意擔任就直接
+    // 要問到院方式，不克擔任照舊整段不問。
+    var wantsTransport = form.willing === true;
 
-    // 請領才有到院方式可言，而核銷要知道他怎麼來——沒選就擋下來
-    if (claim && !form.arrival) {
+    // 到院方式沒選就擋下來——核銷要知道他怎麼來
+    if (wantsTransport && !form.arrival) {
       err.textContent = "請選擇到院方式";
       show(err, true);
       return;
     }
-    // 請領就得填得出核銷要的那一段路，不然承辦人還是得打電話問
-    if (claim && isRail() && !(form.fromStation.trim() && form.toStation.trim())) {
+    // 到院方式選了就得填得出核銷要的那一段路，不然承辦人還是得打電話問
+    if (wantsTransport && isRail() && !(form.fromStation.trim() && form.toStation.trim())) {
       err.textContent = "請填寫起站與訖站";
       show(err, true);
       return;
     }
-    if (claim && isCar() && !form.origin.trim()) {
+    if (wantsTransport && isCar() && !form.origin.trim()) {
       err.textContent = "請填寫出發地";
       show(err, true);
       return;
@@ -738,19 +717,22 @@
     btn.textContent = "送出中…";
     show(err, false);
 
-    /* 不願意或不請領時不送到院方式：那幾格根本沒展開，送出去只是雜訊。
-       **transportModes 不送**——由 DB 函式依到院方式推（只有一份規則）。 */
+    /* 不願意時不送到院方式：那幾格根本沒展開，送出去只是雜訊。
+       **transportModes 不送**——由 DB 函式依到院方式推（只有一份規則）。
+       claimTransport 固定送 true（決策者 2026-09-23，推翻 2026-09-18「先問
+       請不請領」）：DB 函式 invite_public_reply 靠這個鍵決定要不要收起訖站／
+       出發地，SQL 沒有改，所以這裡照樣要送——只是畫面上不再讓委員自己選了。 */
     var payload = {
       willing: form.willing,
       mobile: form.mobile,
       address: form.address,
-      arrival: claim ? form.arrival : "",
-      arrivalNote: claim && form.arrival === "other" ? form.arrivalNote : "",
-      claimTransport: claim,
-      fromStation: claim && isRail() ? form.fromStation.slice(0, MAX_STATION) : "",
-      toStation: claim && isRail() ? form.toStation.slice(0, MAX_STATION) : "",
-      origin: claim && isCar() ? form.origin.slice(0, MAX_ORIGIN) : "",
-      taxiTransfer: claim && isRail() && form.taxiTransfer === true,
+      arrival: wantsTransport ? form.arrival : "",
+      arrivalNote: wantsTransport && form.arrival === "other" ? form.arrivalNote : "",
+      claimTransport: true,
+      fromStation: wantsTransport && isRail() ? form.fromStation.slice(0, MAX_STATION) : "",
+      toStation: wantsTransport && isRail() ? form.toStation.slice(0, MAX_STATION) : "",
+      origin: wantsTransport && isCar() ? form.origin.slice(0, MAX_ORIGIN) : "",
+      taxiTransfer: wantsTransport && isRail() && form.taxiTransfer === true,
       /* 不克擔任不必簽（紙本 04 也只有願意那一欄帶三款），送空的那一份 */
       signedName: form.willing ? signed.slice(0, MAX_SIGNED_NAME) : "",
       agreed: form.willing && form.agreed === true,
@@ -844,7 +826,8 @@
         form.address = (previous && previous.address) || view.address || "";
         form.arrival = (previous && previous.arrival) || "";
         form.arrivalNote = (previous && previous.arrivalNote) || "";
-        form.claimTransport = Boolean(previous && previous.claimTransport);
+        // 「是否請領交通費」那一題已拿掉（決策者 2026-09-23）——不再讀舊回覆
+        // 的 claimTransport 決定畫面，form.claimTransport 固定是 true（見上）
         // 起訖站／出發地一併回填（改回覆的人不必重打）；舊資料沒有這幾個鍵就是空的
         form.fromStation = (previous && previous.fromStation) || "";
         form.toStation = (previous && previous.toStation) || "";
