@@ -70,17 +70,35 @@
     padding: 16px;
     margin-bottom: 16px;
   }
-  h1 { margin: 0; font-size: 16px; font-weight: 600; }
-  .case { margin: 4px 0 0; font-size: 13px; color: var(--n-700); }
-  dl { display: grid; grid-template-columns: 5em minmax(0,1fr); gap: 4px 8px; margin: 12px 0 0; font-size: 13px; }
+  /* ── 首屏（交接包-144，決策者 2026-09-23）：院名在最上、案名是 h1 ──
+     信只剩一顆「前往線上回覆」，做決定要的資訊全部在這張卡上。
+     與院內頁 src/components/Invite/InviteBriefCard.tsx 同構（數值照抄那支）。 */
+  .signer { margin: 0; font-size: 12.5px; color: var(--n-600); }
+  h1 { margin: 4px 0 0; font-size: 17px; font-weight: 500; line-height: 1.375; text-wrap: pretty; }
+  .case-no { margin: 4px 0 0; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 13px; color: var(--n-700); }
+  .greet { margin: 16px 0 0; font-size: 14px; color: var(--n-900); }
+  .lead { margin: 4px 0 0; font-size: 14px; line-height: 1.75; color: var(--n-800); }
+  /* 採購案簡介：一段可能換行的自由文字，底色與白卡分開（逐案在工作頁③填） */
+  .summary {
+    margin: 12px 0 0; padding: 10px 12px; border-radius: var(--r-md);
+    background: var(--n-25); font-size: 14px; line-height: 1.75; color: var(--n-800);
+    white-space: pre-line;
+  }
+  dl { display: grid; grid-template-columns: 4.5em minmax(0,1fr); gap: 8px 12px; margin: 16px 0 0; font-size: 14px; }
   dt { color: var(--n-500); margin: 0; }
-  dd { margin: 0; color: var(--n-900); }
-  dd.mono { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--n-800); }
-  .signer { margin: 12px 0 0; font-size: 12px; color: var(--n-500); }
+  dd { margin: 0; min-width: 0; color: var(--n-900); }
+  /* 出席費的交通費一行、回覆期限的逾期一行：附在值底下，不另外佔一列 */
+  .dd-note { display: block; font-size: 12.5px; color: var(--n-600); }
+  .dd-strong { font-weight: 500; }
+  /* 電話做成可點的 tel:（手機上直接撥）；py 給夠讓手指點得到 */
+  a.tel { display: block; padding: 4px 0; color: var(--accent); text-underline-offset: 2px; text-decoration: none; }
+  a.tel:hover { text-decoration: underline; }
 
   fieldset { border: 0; margin: 0 0 16px; padding: 0; }
   legend { padding: 0; margin-bottom: 8px; font-size: 13px; color: var(--n-700); }
-  legend.strong { font-weight: 600; color: var(--n-800); }
+  /* 決定那一題的題目（交接包-144：與院內頁 WillingChoice.tsx 的
+     text-[15px] font-medium text-n-900／mb-3 同一階） */
+  legend.strong { margin-bottom: 12px; font-size: 15px; font-weight: 500; color: var(--n-900); }
   .hint { font-size: 12px; color: var(--n-500); font-weight: 400; }
 
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -92,7 +110,9 @@
     border-radius: var(--r-md); padding: 8px 12px; font: inherit; font-size: 14px;
     cursor: pointer; text-align: center;
   }
-  .big .opt { padding: 12px; font-size: 15px; }
+  /* 兩顆決定鈕：52px（≥44 觸控下限）＋16px 字——手機上是整頁唯一的決定
+     （交接包-144；與院內頁 WillingChoice.tsx 的 h-[52px]／text-[16px] 同一階） */
+  .grid2.big .opt { height: 52px; padding: 0 12px; font-size: 16px; white-space: nowrap; }
   .opt[aria-pressed="true"] {
     border-color: var(--accent); background: var(--accent-soft);
     color: var(--n-900); font-weight: 600;
@@ -120,16 +140,24 @@
   label.check.top { align-items: flex-start; }
   label.check.top > input[type="checkbox"] { margin-top: 3px; }
 
-  /* 同意事項與本人確認（決策者 2026-09-21）：整段收進一個有底的框，
-     與上面的交通段分開——那是「填資料」，這一段是「他本人同意了什麼」。
-     版型與院內頁 InviteReplyPage.tsx 那一塊同構，數值待 design 收。 */
-  fieldset#consent {
+  /* 三款同意事項：**首屏的一張卡**（交接包-144），在決定鈕之上。
+     14px／行高 1.75——手機上那是要讀的正文，不再是 12.5px 的附註。
+     與院內頁 ConsentClausesCard.tsx 同構。 */
+  #clauses h2 { margin: 0; font-size: 15px; font-weight: 500; color: var(--n-900); }
+  #clauses .sub { margin: 4px 0 0; font-size: 12.5px; color: var(--n-600); }
+  ol.clauses { list-style: none; margin: 12px 0 0; padding: 0; font-size: 14px; line-height: 1.75; color: var(--n-800); }
+  ol.clauses > li { text-wrap: pretty; }
+  ol.clauses > li + li { margin-top: 8px; }
+
+  /* 本人確認（決策者 2026-09-21；交接包-144 起**不重印條文**，只留勾選＋姓名＋小字）：
+     位置在 #details 最前面，緊接決定鈕下方——「並同意以上事項」離上面那張
+     條文卡只隔一排鈕。與院內頁 ConsentConfirm.tsx 同構。 */
+  #consent {
     border: 1px solid var(--n-200); background: var(--n-25);
-    border-radius: var(--r-md); padding: 12px;
+    border-radius: var(--r-md); padding: 12px; margin-bottom: 16px;
   }
-  fieldset#consent > legend { padding: 0 4px; }
-  ol.clauses { list-style: none; margin: 0; padding: 0; font-size: 12.5px; line-height: 1.7; color: var(--n-700); }
-  ol.clauses > li + li { margin-top: 6px; }
+  /* 勾選句是這一框的第一行（條文已搬到首屏），不要留 label.check 的上緣間距 */
+  #consent > label.check { margin-top: 0; }
 
   .submit {
     display: block; width: 100%; border: 0; border-radius: var(--r-md);
@@ -162,17 +190,59 @@
   </div>
 
   <div id="main" hidden>
+    <!--
+      首屏：案件資訊卡（交接包-144，決策者 2026-09-23）
+
+        「信上直接帶出要不要參加滿爛的，是不是就給一個連結點進去在網頁上
+          自己操作就好。」
+
+      信只剩一顆「前往線上回覆」，所以**做決定需要的資訊全部在這張卡**：
+      案名（＝本頁標題，原本那句「聘兼評選委員意願調查」退到 <title>）、案號、
+      簡介、會議時間地點、出席費、回覆期限、聯絡人。
+      **任何一欄沒值就整列不印**（invite_public_view 補欄位的 DDL 還沒跑之前，
+      這一頁照樣能用）。
+    -->
     <header class="card">
-      <h1>聘兼評選委員意願調查</h1>
-      <p class="case" id="case-name"></p>
+      <p class="signer">國立成功大學醫學院附設醫院　工務室</p>
+      <h1 id="case-name"></h1>
+      <p class="case-no" id="case-no" hidden></p>
+
+      <p class="greet"><span id="member-name"></span> 委員 您好：</p>
+      <p class="lead">本院依政府採購法籌組本案採購評選委員會，敬邀 您擔任評選委員。</p>
+      <p class="summary" id="summary" hidden></p>
+
       <dl>
-        <dt>受邀委員</dt><dd id="member-name"></dd>
-        <dt id="dt-no" hidden>案號</dt><dd class="mono" id="case-no" hidden></dd>
         <dt id="dt-meeting" hidden>會議時間</dt><dd id="meeting" hidden></dd>
         <dt id="dt-venue" hidden>會議地點</dt><dd id="venue" hidden></dd>
+        <dt id="dt-fee" hidden>出席費</dt>
+        <dd id="fee" hidden>
+          <span id="fee-amount"></span>
+          <span class="dd-note">自 30 公里以外前來者，另依規定支給交通費</span>
+        </dd>
+        <dt id="dt-deadline" hidden>回覆期限</dt>
+        <dd id="deadline" hidden>
+          <span class="dd-strong" id="deadline-text"></span>
+          <span class="dd-note">逾期未回覆視同不克擔任</span>
+        </dd>
+        <dt id="dt-contact" hidden>聯絡人</dt>
+        <dd id="contact" hidden>
+          <span id="contact-name" hidden></span>
+          <a class="tel" id="contact-phone" hidden></a>
+        </dd>
       </dl>
-      <p class="signer">國立成功大學醫學院附設醫院　工務室</p>
     </header>
+
+    <!--
+      三款同意事項**全文**（交接包-144）：首屏就印、在決定鈕之上——
+      他要先知道擔任委員得同意什麼，才決定願不願意。
+      已回覆（#done）時整張不出現（他已經答過了，再問一次只是雜訊）。
+      字只從下面的 CONSENT_CLAUSES 來，這裡不抄。
+    -->
+    <section class="card" id="clauses" hidden>
+      <h2>擔任委員應同意事項</h2>
+      <p class="sub">選「願意擔任」時，請勾選同意並輸入姓名。</p>
+      <ol class="clauses" id="clauses-list"></ol>
+    </section>
 
     <!-- 送出後的畫面（回過的人再點進來也先看到這一張，按「修改回覆」回表單） -->
     <section id="done" class="card center" hidden>
@@ -193,6 +263,29 @@
       <!-- 不克擔任的人按一下就送出——再逼他填手機地址只會讓他乾脆不回
            （決策者 2026-09-05：「按一下確認送出即完成」） -->
       <div id="details" hidden>
+        <!--
+          **本人確認**（決策者 2026-09-21：「意願調查表我們現在用線上的了，
+          要如何讓他確認是本人？」）——裁定：專屬連結＋親自輸入全名（須與名單
+          相符）＋勾選同意＋紀錄回覆時間。
+
+          交接包-144 起這一框**不重印條文**（三款已在首屏的 #clauses 卡讀過），
+          位置也移到 #details 的**最前面**：緊接決定鈕下方，
+          「並同意以上事項」離條文只隔一排鈕。不克擔任的人整段不出現。
+        -->
+        <div id="consent">
+          <label class="check top">
+            <input type="checkbox" id="agreed" aria-label="本人願意擔任本案評選委員，並同意以上事項">
+            本人願意擔任本案評選委員，並同意以上事項
+          </label>
+          <label class="field" style="margin:12px 0 0">
+            <span>請輸入您的姓名（本人確認）</span>
+            <input id="signed-name" type="text" maxlength="40" autocomplete="name" aria-label="請輸入您的姓名（本人確認）">
+          </label>
+          <!-- 打了字卻對不起來才提示；空著不提示（還沒打完就跳紅字是在罵人） -->
+          <p class="err" id="name-mismatch" hidden style="margin:4px 0 0">輸入的姓名與受邀委員不符，請確認後再送出；如有疑問請聯繫承辦人</p>
+          <p class="sub-label" style="margin:8px 0 0">本回覆經由寄至您電子信箱之專屬連結送出，系統將記錄回覆時間，作為意願調查之紀錄。</p>
+        </div>
+
         <label class="field">
           <span>行動電話</span>
           <input id="mobile" type="text" inputmode="tel" maxlength="200" aria-label="行動電話">
@@ -256,44 +349,22 @@
           </div>
         </fieldset>
 
-        <!--
-          **同意事項與本人確認**（決策者 2026-09-21：「意願調查表我們現在用線上的了，
-          要如何讓他確認是本人？」）——裁定：專屬連結＋親自輸入全名（須與名單相符）
-          ＋勾選同意＋紀錄回覆時間。
-
-          紙本 04 那張靠親筆簽名＋勾「並同意以下事項」三款成立，改線上之後三款不能
-          就這樣不見，所以搬到這裡：**選「願意」才展開（這一段在 #details 裡）、
-          必勾才送得出**。不克擔任的人整段不出現。
-
-          三款的字寫在下面的 CONSENT_CLAUSES（這一頁是單檔，import 不了院內頁那支
-          常數檔），與 src/components/Invite/consentClauses.ts、紙本樣稿
-          print_invitation_survey.txt 三處逐字相同——scripts/test-invite-reply.mjs 比對。
-        -->
-        <fieldset id="consent">
-          <legend class="strong">同意事項與本人確認</legend>
-          <ol class="clauses" id="consent-clauses"></ol>
-          <label class="check top">
-            <input type="checkbox" id="agreed" aria-label="本人願意擔任本案評選委員，並同意以上事項">
-            本人願意擔任本案評選委員，並同意以上事項
-          </label>
-          <label class="field" style="margin:12px 0 0">
-            <span>請輸入您的姓名（本人確認）</span>
-            <input id="signed-name" type="text" maxlength="40" autocomplete="name" aria-label="請輸入您的姓名（本人確認）">
-          </label>
-          <!-- 打了字卻對不起來才提示；空著不提示（還沒打完就跳紅字是在罵人） -->
-          <p class="err" id="name-mismatch" hidden style="margin:4px 0 0">輸入的姓名與受邀委員不符，請確認後再送出；如有疑問請聯繫承辦人</p>
-          <p class="sub-label" style="margin:8px 0 0">本回覆經由寄至您電子信箱之專屬連結送出，系統將記錄回覆時間，作為意願調查之紀錄。</p>
-        </fieldset>
       </div>
 
-      <label class="field">
-        <span>備註（選填）</span>
-        <textarea id="note" rows="3" maxlength="500" aria-label="備註"></textarea>
-      </label>
+      <!--
+        備註與送出鈕**沒選之前不出現**（交接包-144）：還沒決定願不願意時，
+        整頁只有上面那兩顆鈕——送出鈕是「不存在」，不是 disabled。
+      -->
+      <div id="tail" hidden>
+        <label class="field">
+          <span>備註（選填）</span>
+          <textarea id="note" rows="3" maxlength="500" aria-label="備註"></textarea>
+        </label>
 
-      <p class="err" id="submit-error" hidden></p>
-      <button type="button" class="submit" id="submit">確認送出</button>
-      <p class="foot">送出後仍可再次點選信中連結修改；如有疑義，敬請逕與本院承辦人聯繫。</p>
+        <p class="err" id="submit-error" hidden></p>
+        <button type="button" class="submit" id="submit">確認送出</button>
+        <p class="foot">送出後仍可再次點選信中連結修改；如有疑義，敬請逕與本院承辦人聯繫。</p>
+      </div>
     </section>
   </div>
 </div>
@@ -346,10 +417,19 @@
 
   var params = new URLSearchParams(location.search);
   var token = (params.get("t") || "").trim().toLowerCase();
-  var preset = params.get("a");
+
+  /* 舊信（2026-09-23 以前寄出）網址還帶著 `&a=yes|no`＝**預選**；
+     新信只有一顆「前往線上回覆」、不帶這個參數，所以讀不到就是
+     null＝還沒選（交接包-144：沒選之前兩顆鈕以外什麼都不出現）。 */
+  function presetWilling() {
+    var a = params.get("a");
+    if (a === "yes") return true;
+    if (a === "no") return false;
+    return null;
+  }
 
   var form = {
-    willing: preset !== "no",
+    willing: presetWilling(),
     mobile: "", address: "", arrival: "", arrivalNote: "",
     claimTransport: false,
     fromStation: "", toStation: "", origin: "", taxiTransfer: false,
@@ -377,25 +457,63 @@
 
   /* ── 民國年＋星期：「民國 115 年 08 月 31 日（星期一）10:00」
         （與院內頁 InviteReplyPage.meetingText 同一條規則）────────── */
-  function meetingText(iso) {
-    if (!iso) return "";
-    var d = new Date(iso);
+  function rocDateText(value, withTime) {
+    if (!value) return "";
+    var d = new Date(value);
     if (isNaN(d.getTime())) return "";
     try {
-      var parts = new Intl.DateTimeFormat("zh-TW", {
+      var opts = {
         timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", weekday: "long", hour12: false
-      }).formatToParts(d);
+        weekday: "long", hour12: false
+      };
+      if (withTime) { opts.hour = "2-digit"; opts.minute = "2-digit"; }
+      var parts = new Intl.DateTimeFormat("zh-TW", opts).formatToParts(d);
       var g = function (t) {
         for (var i = 0; i < parts.length; i++) if (parts[i].type === t) return parts[i].value;
         return "";
       };
       var year = Number(g("year")) - 1911;
-      return "民國 " + year + " 年 " + g("month") + " 月 " + g("day") + " 日（" +
-        g("weekday") + "）" + g("hour") + ":" + g("minute");
+      var head = "民國 " + year + " 年 " + g("month") + " 月 " + g("day") + " 日（" + g("weekday") + "）";
+      return withTime ? head + g("hour") + ":" + g("minute") : head;
     } catch (e) {
       // 舊瀏覽器沒有完整的 Intl 也不能讓整頁掛掉——寧可少一行也要讓他回得了
       return "";
+    }
+  }
+
+  function meetingText(iso) { return rocDateText(iso, true); }
+
+  /* 回覆期限是一整天（DB 的 date 欄），**不帶時分**——印出 00:00 只會讓
+     委員以為當天零時就截止（與院內頁 inviteDeadlineText 同一條規則） */
+  function deadlineText(date) { return rocDateText(date, false); }
+
+  /* 「李有昇 06-2353535 分機 4977」→ 第一個空白之前當姓名、之後當電話；
+     沒有空白就整串當姓名（只填姓名的案子照樣印得出來，只是沒有可點的電話）。
+     與院內頁 splitInviteContact 同一條規則。 */
+  function splitContact(text) {
+    var s = String(text == null ? "" : text).trim();
+    if (!s) return { name: "", phone: "" };
+    var m = /^([^\s　]+)[\s　]+([\s\S]*)$/.exec(s);
+    if (!m) return { name: s, phone: "" };
+    return { name: m[1], phone: m[2].trim() };
+  }
+
+  /* 電話字串轉 tel:——只留數字，分機接 `,`（撥通後自動按分機） */
+  function telHref(phone) {
+    var seg = String(phone).split(/分機|轉|#|ext\.?/i);
+    var digits = function (s) { return String(s || "").replace(/\D/g, ""); };
+    return "tel:" + digits(seg[0]) + (seg[1] ? "," + digits(seg[1]) : "");
+  }
+
+  /* 出席費：**印得出來的正數才印**。invite_public_view 在 app_settings 沒有
+     那一列時回 0，而「每次新臺幣 0 元」比不印還糟。 */
+  function attendanceFeeText(value) {
+    var n = typeof value === "string" ? Number(value) : value;
+    if (typeof n !== "number" || !isFinite(n) || n <= 0) return "";
+    try {
+      return "每次新臺幣 " + n.toLocaleString("zh-TW") + " 元";
+    } catch (e) {
+      return "每次新臺幣 " + n + " 元";
     }
   }
 
@@ -429,6 +547,8 @@
     $("willing-yes").setAttribute("aria-pressed", String(form.willing === true));
     $("willing-no").setAttribute("aria-pressed", String(form.willing === false));
     show($("details"), form.willing === true);
+    // 還沒選＝備註與送出鈕都不存在（交接包-144），不是 disabled
+    show($("tail"), form.willing !== null);
   }
 
   function paintArrival() {
@@ -479,25 +599,29 @@
     paintConsent();
   }
 
+  /* 已回覆：案件卡＋這一張，**三款卡與決定鈕都不出現**（他已經答過了） */
   function showDone() {
     $("done-sub").textContent = form.willing
       ? "本院將依核定名單順序另行寄送聘函與開會通知，敬請查收。"
       : "感謝 您撥冗回覆，本院將另洽其他委員。";
     show($("done"), true);
     show($("form"), false);
+    show($("clauses"), false);
     window.scrollTo(0, 0);
   }
 
   function showForm() {
     show($("done"), false);
     show($("form"), true);
+    show($("clauses"), true);
   }
 
   /* ── 選項按鈕（到院方式是資料生出來的，不寫死在 HTML 裡）───────── */
   function buildOptions() {
     /* 三款同意事項也是資料生出來的：字只有 CONSENT_CLAUSES 一份，
-       HTML 裡再抄一次就等於這一頁自己有兩份法條 */
-    var clauses = $("consent-clauses");
+       HTML 裡再抄一次就等於這一頁自己有兩份法條。
+       交接包-144 起印在首屏那張 #clauses 卡（決定鈕之上），不再在同意框裡 */
+    var clauses = $("clauses-list");
     CONSENT_CLAUSES.forEach(function (text) {
       var li = document.createElement("li");
       li.textContent = text;
@@ -569,6 +693,8 @@
   function submit() {
     var btn = $("submit");
     var err = $("submit-error");
+    // 沒選就沒有送出鈕（#tail 整塊 hidden），這裡只是收口
+    if (form.willing === null) return;
     var claim = form.willing && form.claimTransport === true;
 
     // 請領才有到院方式可言，而核銷要知道他怎麼來——沒選就擋下來
@@ -666,15 +792,54 @@
       .then(function (view) {
         if (!view || typeof view !== "object") throw new Error("not found");
 
+        /* 首屏（交接包-144）：案名是 h1、案號在它底下，其餘進 dl。
+           intro／contact／deadline／attendanceFee 是 invite_public_view
+           2026-09-23 才多回的鍵——**DDL 沒跑就讀不到，那幾列整列不印**
+           （舊頁面對多出來的鍵視而不見，新頁面對少掉的鍵也一樣） */
         $("case-name").textContent = view.caseName || "";
         memberName = view.memberName || "";
         $("member-name").textContent = memberName;
-        fillRow($("dt-no"), $("case-no"), view.caseNumber || "");
+        if (view.caseNumber) {
+          $("case-no").textContent = view.caseNumber;
+          show($("case-no"), true);
+        }
+        if (view.intro) {
+          $("summary").textContent = view.intro;
+          show($("summary"), true);
+        }
         fillRow($("dt-meeting"), $("meeting"), meetingText(view.meetingAt));
         fillRow($("dt-venue"), $("venue"), view.venue || "");
 
+        var feeText = attendanceFeeText(view.attendanceFee);
+        if (feeText) {
+          $("fee-amount").textContent = feeText;
+          show($("dt-fee"), true);
+          show($("fee"), true);
+        }
+        var dueText = deadlineText(view.deadline);
+        if (dueText) {
+          $("deadline-text").textContent = dueText + "前";
+          show($("dt-deadline"), true);
+          show($("deadline"), true);
+        }
+        var contact = splitContact(view.contact);
+        if (contact.name || contact.phone) {
+          if (contact.name) {
+            $("contact-name").textContent = "發包小組 " + contact.name;
+            show($("contact-name"), true);
+          }
+          if (contact.phone) {
+            $("contact-phone").textContent = contact.phone;
+            $("contact-phone").setAttribute("href", telHref(contact.phone));
+            show($("contact-phone"), true);
+          }
+          show($("dt-contact"), true);
+          show($("contact"), true);
+        }
+
         var previous = view.reply && typeof view.reply === "object" ? view.reply : null;
-        form.willing = previous ? previous.willing === true : preset !== "no";
+        // 回過的以他上次選的為準；沒回過就看舊信帶的預選（新信不帶＝還沒選）
+        form.willing = previous ? previous.willing === true : presetWilling();
         form.mobile = (previous && previous.mobile) || view.mobile || "";
         form.address = (previous && previous.address) || view.address || "";
         form.arrival = (previous && previous.arrival) || "";
