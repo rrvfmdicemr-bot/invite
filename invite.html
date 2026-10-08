@@ -221,6 +221,15 @@
   /* 備註：h-[76px]；底下那一句 mt-1.5 text-[12px] text-n-600 */
   .tc-form textarea { height: 76px; }
   .tc-hint { margin: 6px 0 0; font-size: 12px; color: var(--n-600); }
+  /* 送出失敗（可以再試一次的）那一槽，在送出鈕正下方（母版規則 10）：
+     -mt-1 rounded-md border border-st-failed-border bg-st-failed-surface px-3 py-2
+     text-[13px] leading-[1.7] text-st-failed-text。
+     三個色值＝ index.css 的 --st-failed-border／--st-failed-surface／--st-failed-text
+     （這一頁沒有 Tailwind，照抄 token 的實際色值） */
+  .tc-error {
+    margin: -4px 0 0; padding: 8px 12px; border: 1px solid #f4c4bd; border-radius: var(--r-md);
+    background: #fdecea; font-size: 13px; line-height: 1.7; color: #b91c1c;
+  }
   /* 送出鈕底下那一句：-mt-1 text-[12px] text-n-600 */
   .tc-foot { margin: -4px 0 0; font-size: 12px; color: var(--n-600); }
   /* 已收到／過期／會議已過三張卡：CARD p-5 */
@@ -236,7 +245,6 @@
   /* 過期／會議已過的說明：mt-2.5 text-[14px] leading-[1.75] text-n-800 */
   .tc-body { margin: 10px 0 0; font-size: 14px; line-height: 1.75; color: var(--n-800); }
   .tc-body strong { font-weight: 500; }
-  .tc-nowrap { white-space: nowrap; }
   /* 有疑問請洽：mt-3 text-[13px] text-n-600；電話 block py-1 text-[14px] text-accent */
   .tc-ask { margin: 12px 0 0; font-size: 13px; color: var(--n-600); }
   a.tc-tel { display: block; padding: 4px 0; font-size: 14px; color: var(--accent); }
@@ -426,11 +434,12 @@
   <!--
     ══ 開會時間確認模式（`&m=time`；決策者 2026-10-07，design 交接包-150）══
 
-    與院內頁 TimeConfirmReply.tsx 的四件同構，四種畫面只會有一種在：
+    與院內頁 TimeConfirmReply.tsx 的五件同構，四種畫面只會有一種在：
 
       可回覆   #tc-brief ＋ #tc-form
-      已回覆   #tc-brief ＋ #tc-done（送出後、或重開連結；按「修改回覆」回 #tc-form）
-      會議已過 #tc-brief ＋ #tc-passed
+      已回覆   #tc-brief ＋ #tc-done（送出後、或重開連結；按「修改回覆」回 #tc-form，
+               上次選的與備註帶著——母版規則 10）
+      會議已過 #tc-brief ＋ #tc-passed（母版 TimeConfirmPassed，規則 9）
       連結過期 只有 #tc-expired —— **不印新時間、不印舊回覆、不給選項**（母版規則 7）
 
     這一塊與上面的意願調查（#main）互不相干：這個模式一開始就把 #main 從頁面上拿掉，
@@ -445,7 +454,9 @@
       <p class="case-no" id="tc-case-no" hidden></p>
 
       <p class="greet"><span id="tc-member-name"></span> 委員 您好：</p>
-      <p class="lead">本案評選委員會議改期，重新排定如下，敬請回覆能否出席。</p>
+      <!-- 問候句看有沒有下面那一句（母版規則 8）：有＝「…改期，重新排定如下…」；
+           沒有＝「…會議時間排定如下…」。字在 TC_LEAD_RESCHEDULED／TC_LEAD_SCHEDULED -->
+      <p class="lead" id="tc-lead"></p>
       <!-- 原訂時間取消那一句：有取消的那一場才印（母版規則 2），在問候之後、時間地點之前 -->
       <p class="tc-cancelled" id="tc-cancelled" hidden></p>
 
@@ -479,8 +490,10 @@
           </label>
           <p class="tc-hint">交通方式若有變更，請告知承辦人。</p>
         </div>
-        <p class="err" id="tc-error" hidden style="margin:0"></p>
         <button type="button" class="submit" id="tc-submit">確認送出</button>
+        <!-- 錯誤槽在送出鈕正下方（母版規則 10）：只放可以再試一次的失敗（斷線、伺服器錯）；
+             送出時才發現過期／會議已過／連結無效，是換整張畫面，不印在這裡 -->
+        <p class="tc-error" id="tc-error" role="alert" hidden></p>
         <p class="tc-foot">會議前都可以再點信中連結修改。</p>
       </div>
     </section>
@@ -494,17 +507,24 @@
       <button type="button" class="ghost" id="tc-edit">修改回覆</button>
     </section>
 
-    <!-- 會議已過：看得到是哪一場，但不能再回覆（母版沒有這一態；外框照過期那一張） -->
+    <!-- 會議已過（母版 TimeConfirmPassed，規則 9）：看得到是哪一場，但不能再回覆；
+         與過期那一張同外框。回過才印「您先前的回覆是…」那一句（#tc-passed-last） -->
     <section class="card tc-pad" id="tc-passed" hidden>
       <p class="tc-title">會議時間已過</p>
-      <p class="tc-body" id="tc-passed-text"></p>
+      <p class="tc-body">
+        這場會議的時間已經過了，<strong>這裡不能再回覆</strong>。<span id="tc-passed-last" hidden></span>
+      </p>
+      <p class="tc-ask" id="tc-passed-contact" hidden></p>
+      <a class="tc-tel" id="tc-passed-phone" hidden></a>
     </section>
 
-    <!-- 連結過期：會議時間已經改了——不印新時間、不印舊回覆、不給選項，請用新信 -->
+    <!-- 連結過期：會議時間已經改了——不印新時間、不印舊回覆、不給選項，請用新信。
+         舊時間也不印（母版規則 7 的 staleText 不傳）：函式在過期時刻意不回任何時間，
+         委員手上那封信本身就印著 -->
     <section class="card tc-pad" id="tc-expired" hidden>
       <p class="tc-title">這封信的會議時間已經改了</p>
       <p class="tc-body">
-        您點的是 <span class="tc-nowrap" id="tc-stale"></span> 的確認信，這個時間已取消，<strong>這裡不能再回覆</strong>。本院會另寄新時間的確認信，請改用新信中的按鈕。
+        您點的是先前寄出的確認信，這個時間已取消，<strong>這裡不能再回覆</strong>。本院會另寄新時間的確認信，請改用新信中的按鈕。
       </p>
       <p class="tc-ask" id="tc-expired-contact" hidden></p>
       <a class="tc-tel" id="tc-expired-phone" hidden></a>
@@ -971,10 +991,15 @@
      scripts/test-invite-reply.mjs 會把這一段挖出來檢查。 */
 
   var TC_TITLE = "開會時間確認｜國立成功大學醫學院附設醫院";
-  /* 過期頁「您點的是 ○○ 的確認信」那一格：函式在過期時不回舊時間，
-     與院內頁用同一個詞（timeConfirmState.STALE_TIME_TEXT） */
-  var TC_STALE_TEXT = "先前時間";
   var TC_NOTE_MAX = 500;
+  /* 首屏問候句（母版規則 8）：有「原訂…的會議已取消。」那一句＝改期；沒有＝第一次排
+     （或第 2 次以後的招標沒留下取消快照）——中性句不會錯，改期句會 */
+  var TC_LEAD_RESCHEDULED = "本案評選委員會議改期，重新排定如下，敬請回覆能否出席。";
+  var TC_LEAD_SCHEDULED = "本案評選委員會議時間排定如下，敬請回覆能否出席。";
+  /* 送出失敗、**可以再試一次**的那兩句（母版規則 10 的錯誤槽）。
+     與院內頁 InviteReplyPage 的 TIME_CONFIRM_ERROR_OFFLINE／_SERVER 逐字相同 */
+  var TC_ERR_OFFLINE = "沒有送出：網路連線中斷，請再按一次確認送出。";
+  var TC_ERR_SERVER = "沒有送出：系統暫時無法處理，請稍後再按一次確認送出。";
 
   /* view＝函式回的那一份；choice＝可以出席(true)／不克出席(false)／還沒選(null)；
      editing＝回過了、按了「修改回覆」 */
@@ -1002,6 +1027,17 @@
 
   function tcAnswerText(reply) { return reply === "yes" ? "可以出席" : "不克出席"; }
 
+  /* 過期／會議已過兩張卡底下的「有疑問請洽 發包小組 ○○」＋可點的電話；沒有就整行不印 */
+  function tcAsk(line, phone, contact) {
+    if (contact.name) line.textContent = "有疑問請洽 發包小組 " + contact.name;
+    show(line, Boolean(contact.name));
+    if (contact.phone) {
+      phone.textContent = contact.phone;
+      phone.setAttribute("href", telHref(contact.phone));
+    }
+    show(phone, Boolean(contact.phone));
+  }
+
   function tcPaintChoice() {
     $("tc-yes").setAttribute("aria-pressed", String(tc.choice === true));
     $("tc-no").setAttribute("aria-pressed", String(tc.choice === false));
@@ -1022,14 +1058,7 @@
       show($("tc-form"), false);
       show($("tc-done"), false);
       show($("tc-passed"), false);
-      $("tc-stale").textContent = TC_STALE_TEXT;
-      if (contact.name) $("tc-expired-contact").textContent = "有疑問請洽 發包小組 " + contact.name;
-      show($("tc-expired-contact"), Boolean(contact.name));
-      if (contact.phone) {
-        $("tc-expired-phone").textContent = contact.phone;
-        $("tc-expired-phone").setAttribute("href", telHref(contact.phone));
-      }
-      show($("tc-expired-phone"), Boolean(contact.phone));
+      tcAsk($("tc-expired-contact"), $("tc-expired-phone"), contact);
       return;
     }
 
@@ -1039,6 +1068,8 @@
     if (v.caseNumber) $("tc-case-no").textContent = v.caseNumber;
     show($("tc-case-no"), Boolean(v.caseNumber));
     var cancelled = tcCancelledText(v.cancelledMeetingAt);
+    // 問候句跟著下面那一句走：印得出「原訂…已取消」才說改期（母版規則 8）
+    $("tc-lead").textContent = cancelled ? TC_LEAD_RESCHEDULED : TC_LEAD_SCHEDULED;
     if (cancelled) $("tc-cancelled").textContent = cancelled;
     show($("tc-cancelled"), Boolean(cancelled));
     $("tc-meeting").textContent = meetingText(v.meetingAt);
@@ -1059,13 +1090,13 @@
     var passed = v.meetingPassed === true;
     var doneVisible = !passed && replied && !tc.editing;
 
-    /* 會議已過：看得到是哪一場與自己回過什麼，但不能再回覆 */
+    /* 會議已過（母版 TimeConfirmPassed）：看得到是哪一場，但不能再回覆；
+       回過才印「您先前的回覆是…」那一句，沒回過那一句整個不印 */
     show($("tc-passed"), passed);
     if (passed) {
-      $("tc-passed-text").textContent =
-        "這場會議的時間已經過了，這裡不能再回覆" +
-        (replied ? "；您先前的回覆是「" + tcAnswerText(v.reply) + "」" : "") +
-        "。如有疑問請洽本院承辦人。";
+      if (replied) $("tc-passed-last").textContent = "您先前的回覆是「" + tcAnswerText(v.reply) + "」。";
+      show($("tc-passed-last"), replied);
+      tcAsk($("tc-passed-contact"), $("tc-passed-phone"), contact);
     }
 
     /* 已回覆（送出後、或重開連結）：已收到＋您的回覆＋送出時間＋修改回覆 */
@@ -1093,12 +1124,18 @@
     btn.textContent = "送出中…";
     show(err, false);
 
+    /* 錯誤槽只放**再按一次就可能成功**的失敗（母版規則 10），兩種：
+       還沒收到任何回應就失敗＝連不上（斷線）；收到回應之後才失敗＝伺服器那一頭的問題。
+       過期／會議已過／連結無效不是這一類——那三種在下面各自換整張畫面。 */
+    var failure = TC_ERR_OFFLINE;
+
     /* 只送這三樣：權杖、能否出席、備註。誰能寫、什麼時候不能寫、寫哪幾格，
        全在資料庫函式裡（它只動 time_confirm 的回覆那幾格） */
     rpc("time_confirm_public_reply", { p_token: token, p_can_attend: canAttend, p_note: note })
       .then(function (res) {
+        failure = TC_ERR_SERVER;
         return res.json().catch(function () { return null; }).then(function (body) {
-          if (!res.ok || !body || typeof body !== "object") throw new Error("送出失敗，請稍後再試");
+          if (!res.ok || !body || typeof body !== "object") throw new Error("reply failed");
           return body;
         });
       })
@@ -1117,10 +1154,10 @@
         if (body.error === "expired") { tc.view.expired = true; tcPaint(); window.scrollTo(0, 0); return; }
         if (body.error === "meeting_passed") { tc.view.meetingPassed = true; tcPaint(); window.scrollTo(0, 0); return; }
         if (body.error === "not_found") { tcShowInvalid(); return; }
-        throw new Error("送出失敗，請稍後再試");
+        throw new Error("reply failed");
       })
-      .catch(function (e) {
-        err.textContent = (e && e.message) || "送出失敗，請稍後再試";
+      .catch(function () {
+        err.textContent = failure;
         show(err, true);
       })
       .then(function () {
@@ -1133,11 +1170,12 @@
   function tcBind() {
     $("tc-yes").addEventListener("click", function () { tc.choice = true; tcPaintChoice(); });
     $("tc-no").addEventListener("click", function () { tc.choice = false; tcPaintChoice(); });
-    // 修改回覆：表單從空的開始（與院內頁一樣，不預帶上次選的）
+    // 修改回覆：進來就選好上次的那一顆、備註帶上（母版規則 10 的 initial，與院內頁一樣）
     $("tc-edit").addEventListener("click", function () {
+      var last = tc.view.reply;
       tc.editing = true;
-      tc.choice = null;
-      $("tc-note").value = "";
+      tc.choice = last === "yes" ? true : last === "no" ? false : null;
+      $("tc-note").value = typeof tc.view.note === "string" ? tc.view.note : "";
       show($("tc-error"), false);
       tcPaint();
     });
