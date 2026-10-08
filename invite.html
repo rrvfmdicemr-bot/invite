@@ -40,6 +40,28 @@
   真正的值以送出的那一份為準。院內頁用的是 `/invite/<token>?answer=`——
   兩邊的組法都在 `server/noticeMail.mjs` 的 `inviteReplyUrl` 一支函式裡。
 
+  ## 第二種模式：開會時間確認（`&m=time`；決策者 2026-10-07，design 交接包-150）
+
+    …/invite.html?t=<uuid>&m=time
+
+  評選會議時間定下（或改期）之後，請**已答應出席**的委員回覆「這個時間能否出席」。
+  權杖是同一把，網址多帶 `m=time`。院內版是同一支 React 頁的
+  `TimeConfirmReplyPage`（母版 `src/components/Invite/TimeConfirmReply.tsx`），
+  這裡照同一套「class → 手寫 CSS」的方式抄一份。資料進出是另外兩支函式：
+
+    time_confirm_public_view(p_token uuid)  → 這一位要確認的那一場（找不到回 null）
+    time_confirm_public_reply(p_token uuid, p_can_attend boolean, p_note text)
+                                            → { ok, repliedAt } 或 { ok:false, error }
+
+  ⚠️ **名單已簽報核定、不能變**——這個模式絕不能讓委員看到意願調查表單：
+  在那張表單按「不克擔任」會改掉第一輪的意願，系統就去問下一位了。所以：
+
+    - 分流在 `start()` 最前面，**先看 `m` 再做別的**；`m=time` 走 `startTimeConfirm()`，
+      從頭到尾不碰 `invite_public_view`／`invite_public_reply`，而且一進去就把意願調查
+      那一整塊（`#main`）**從頁面上拿掉**。
+    - `m` 帶了但不是 `time`（打錯、被截斷、日後的新模式）→ 顯示「連結無效」，
+      **不退回意願調查表單**。只有完全沒帶 `m` 才是意願調查，行為與以前一字不差。
+
   ## 佔位字串
 
   `https://qozsykfodmlpchxbwyaf.supabase.co`／`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvenN5a2ZvZG1scGNoeGJ3eWFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NzQxMjEsImV4cCI6MjA4MzE1MDEyMX0._Vg2wG4dEQi_kjttm1bHsW3-rJHsdi_L6dU274-LvxM` 由 `scripts/publish-invite-page.mjs`
@@ -47,9 +69,11 @@
 -->
 <style>
   :root {
-    --n-0:#ffffff; --n-25:#fbfaf9; --n-200:#d9d4ca; --n-300:#bcb7ab;
+    --n-0:#ffffff; --n-25:#fbfaf9; --n-50:#f4f2ee; --n-200:#d9d4ca; --n-300:#bcb7ab;
     --n-500:#8a8578; --n-600:#6b6659; --n-700:#524e44; --n-800:#3a362f; --n-900:#1b1d21;
     --accent:#1d4ed8; --accent-soft:#eaf0fd; --danger:#b42318;
+    /* 開會時間確認那一行標籤的字色（＝ index.css 的 --st-published-text） */
+    --st-published-text:#a35a04;
     --r-md:6px; --r-lg:10px;
   }
   * { box-sizing: border-box; }
@@ -176,6 +200,47 @@
   .center .title { font-size: 16px; font-weight: 600; }
   .center .sub { margin: 8px 0 0; font-size: 13px; color: var(--n-600); }
   .state { padding: 48px 16px; text-align: center; color: var(--n-600); font-size: 14px; }
+
+  /* ── 開會時間確認模式（`&m=time`；交接包-150）──────────────────────────
+     與院內頁 src/components/Invite/TimeConfirmReply.tsx 同構：每一條後面的註解是
+     母版那一格的 class，數值照抄。首屏卡的外框、h1、案號、問候、dl 沿用上面
+     意願調查那一組（母版規則 1：同一個外框與 dl 版型）。 */
+  /* 標題上方那一行「開會時間確認」：mt-2.5 text-[13px] font-medium text-st-published-text */
+  .tc-tag { margin: 10px 0 0; font-size: 13px; font-weight: 500; color: var(--st-published-text); }
+  /* 案名緊貼標籤：mt-0.5（意願調查那一頁是 mt-1） */
+  .tc-tag + h1 { margin-top: 2px; }
+  /* 原訂時間取消那一句：mt-2.5 rounded-md bg-n-50 px-3 py-2 text-[13px] leading-[1.7] text-n-700 */
+  .tc-cancelled {
+    margin: 10px 0 0; padding: 8px 12px; border-radius: var(--r-md);
+    background: var(--n-50); font-size: 13px; line-height: 1.7; color: var(--n-700);
+  }
+  /* 表單卡：flex flex-col gap-4（fieldset 自己的下緣歸零，間距由 gap 給） */
+  .tc-form { display: flex; flex-direction: column; gap: 16px; }
+  .tc-form fieldset { margin: 0; }
+  .tc-form label.field { margin-bottom: 0; }
+  /* 備註：h-[76px]；底下那一句 mt-1.5 text-[12px] text-n-600 */
+  .tc-form textarea { height: 76px; }
+  .tc-hint { margin: 6px 0 0; font-size: 12px; color: var(--n-600); }
+  /* 送出鈕底下那一句：-mt-1 text-[12px] text-n-600 */
+  .tc-foot { margin: -4px 0 0; font-size: 12px; color: var(--n-600); }
+  /* 已收到／過期／會議已過三張卡：CARD p-5 */
+  .tc-pad { padding: 20px; }
+  .tc-title { margin: 0; font-size: 16px; font-weight: 500; color: var(--n-900); }
+  /* 您的回覆：mt-2.5 text-[14px]；strong 是 font-medium */
+  .tc-answer { margin: 10px 0 0; font-size: 14px; color: var(--n-900); }
+  .tc-answer strong { font-weight: 500; }
+  /* 送出時間：mt-0.5 font-mono text-[12.5px] text-n-600 */
+  .tc-at { margin: 2px 0 0; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12.5px; color: var(--n-600); }
+  /* 會前提醒那一句：mt-2.5 text-[13px] leading-[1.7] text-n-600 */
+  .tc-remind { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: var(--n-600); }
+  /* 過期／會議已過的說明：mt-2.5 text-[14px] leading-[1.75] text-n-800 */
+  .tc-body { margin: 10px 0 0; font-size: 14px; line-height: 1.75; color: var(--n-800); }
+  .tc-body strong { font-weight: 500; }
+  .tc-nowrap { white-space: nowrap; }
+  /* 有疑問請洽：mt-3 text-[13px] text-n-600；電話 block py-1 text-[14px] text-accent */
+  .tc-ask { margin: 12px 0 0; font-size: 13px; color: var(--n-600); }
+  a.tc-tel { display: block; padding: 4px 0; font-size: 14px; color: var(--accent); }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -357,6 +422,94 @@
       </div>
     </section>
   </div>
+
+  <!--
+    ══ 開會時間確認模式（`&m=time`；決策者 2026-10-07，design 交接包-150）══
+
+    與院內頁 TimeConfirmReply.tsx 的四件同構，四種畫面只會有一種在：
+
+      可回覆   #tc-brief ＋ #tc-form
+      已回覆   #tc-brief ＋ #tc-done（送出後、或重開連結；按「修改回覆」回 #tc-form）
+      會議已過 #tc-brief ＋ #tc-passed
+      連結過期 只有 #tc-expired —— **不印新時間、不印舊回覆、不給選項**（母版規則 7）
+
+    這一塊與上面的意願調查（#main）互不相干：這個模式一開始就把 #main 從頁面上拿掉，
+    這裡的每一顆鈕只接到 time_confirm_public_reply。
+    不問手機、地址、交通，也沒有三款同意事項——這一頁只問「這個時間能否出席」。
+  -->
+  <div id="tc-main" hidden>
+    <header class="card" id="tc-brief" hidden>
+      <p class="signer">國立成功大學醫學院附設醫院　工務室</p>
+      <p class="tc-tag">開會時間確認</p>
+      <h1 id="tc-case-name"></h1>
+      <p class="case-no" id="tc-case-no" hidden></p>
+
+      <p class="greet"><span id="tc-member-name"></span> 委員 您好：</p>
+      <p class="lead">本案評選委員會議改期，重新排定如下，敬請回覆能否出席。</p>
+      <!-- 原訂時間取消那一句：有取消的那一場才印（母版規則 2），在問候之後、時間地點之前 -->
+      <p class="tc-cancelled" id="tc-cancelled" hidden></p>
+
+      <!-- 只印這四列（母版規則 3）：不印出席費、簡介、同意事項 -->
+      <dl>
+        <dt>會議時間</dt><dd class="dd-strong" id="tc-meeting"></dd>
+        <dt id="tc-dt-venue" hidden>會議地點</dt><dd id="tc-venue" hidden></dd>
+        <dt id="tc-dt-deadline" hidden>回覆期限</dt><dd id="tc-deadline" hidden></dd>
+        <dt id="tc-dt-contact" hidden>聯絡人</dt>
+        <dd id="tc-contact" hidden>
+          <span id="tc-contact-name" hidden></span>
+          <a class="tel" id="tc-contact-phone" hidden></a>
+        </dd>
+      </dl>
+    </header>
+
+    <!-- 可回覆：兩顆鈕；**沒選之前不出現備註與送出鈕**（母版規則 4） -->
+    <section class="card tc-form" id="tc-form" hidden>
+      <fieldset>
+        <legend class="strong">這個時間能否出席</legend>
+        <div class="grid2 big">
+          <button type="button" class="opt" id="tc-yes" aria-pressed="false">可以出席</button>
+          <button type="button" class="opt" id="tc-no" aria-pressed="false">不克出席</button>
+        </div>
+      </fieldset>
+      <div id="tc-tail" class="tc-form" hidden>
+        <div>
+          <label class="field">
+            <span>備註（選填）</span>
+            <textarea id="tc-note" maxlength="500" aria-label="備註（選填）"></textarea>
+          </label>
+          <p class="tc-hint">交通方式若有變更，請告知承辦人。</p>
+        </div>
+        <p class="err" id="tc-error" hidden style="margin:0"></p>
+        <button type="button" class="submit" id="tc-submit">確認送出</button>
+        <p class="tc-foot">會議前都可以再點信中連結修改。</p>
+      </div>
+    </section>
+
+    <!-- 已回覆（送出後或重開連結是同一個畫面，母版規則 6） -->
+    <section class="card tc-pad center" id="tc-done" hidden>
+      <p class="tc-title">已收到，謝謝</p>
+      <p class="tc-answer">您的回覆：<strong id="tc-done-answer"></strong></p>
+      <p class="tc-at" id="tc-done-at"></p>
+      <p class="tc-remind" id="tc-done-remind" hidden>會前兩天會再寄一封提醒。</p>
+      <button type="button" class="ghost" id="tc-edit">修改回覆</button>
+    </section>
+
+    <!-- 會議已過：看得到是哪一場，但不能再回覆（母版沒有這一態；外框照過期那一張） -->
+    <section class="card tc-pad" id="tc-passed" hidden>
+      <p class="tc-title">會議時間已過</p>
+      <p class="tc-body" id="tc-passed-text"></p>
+    </section>
+
+    <!-- 連結過期：會議時間已經改了——不印新時間、不印舊回覆、不給選項，請用新信 -->
+    <section class="card tc-pad" id="tc-expired" hidden>
+      <p class="tc-title">這封信的會議時間已經改了</p>
+      <p class="tc-body">
+        您點的是 <span class="tc-nowrap" id="tc-stale"></span> 的確認信，這個時間已取消，<strong>這裡不能再回覆</strong>。本院會另寄新時間的確認信，請改用新信中的按鈕。
+      </p>
+      <p class="tc-ask" id="tc-expired-contact" hidden></p>
+      <a class="tc-tel" id="tc-expired-phone" hidden></a>
+    </section>
+  </div>
 </div>
 
 <script>
@@ -410,6 +563,17 @@
   var params = new URLSearchParams(location.search);
   var token = (params.get("t") || "").trim().toLowerCase();
 
+  /* ── 模式：只看網址上的 `m`（決策者 2026-10-07）──────────────────────
+       完全沒帶 m      → 意願調查（原本的行為，一字不差）
+       剛好一個 m=time → 開會時間確認
+       其他（m=、m=xyz、帶了兩個 m…）→ **連結無效**
+     ⚠️ 不認得的 m **不可以**退回意願調查：收到開會時間確認信的人，網址被截斷或打錯時
+     絕不能看到意願表單——在那裡按「不克擔任」會改掉名單。 */
+  var MODE_TIME = "time";
+  var modes = params.getAll("m");
+  var isTimeMode = modes.length === 1 && modes[0] === MODE_TIME;
+  var isUnknownMode = modes.length > 0 && !isTimeMode;
+
   /* 舊信（2026-09-23 以前寄出）網址還帶著 `&a=yes|no`＝**預選**；
      新信只有一顆「前往線上回覆」、不帶這個參數，所以讀不到就是
      null＝還沒選（交接包-144：沒選之前兩顆鈕以外什麼都不出現）。 */
@@ -449,6 +613,12 @@
     return normalizeSignedName(form.signedName) === normalizeSignedName(memberName);
   }
 
+  /* ══ PURE-FORMAT:BEGIN ══════════════════════════════════════════════
+     從這裡到 PURE-FORMAT:END 只放**純函式**（不碰 document／location／外面的變數）。
+     scripts/test-invite-reply.mjs 會把這一段原樣挖出來在 node 裡執行，拿
+     src/utils/timeConfirmState.ts 的 replyPage*（院內頁用的那一份）逐筆比對輸出——
+     兩頁印出來的日期字樣要一字不差。要在這一段加東西，請維持它自己跑得起來。 */
+
   /* ── 民國年＋星期：「民國 115 年 08 月 31 日（星期一）10:00」
         （與院內頁 InviteReplyPage.meetingText 同一條規則）────────── */
   function rocDateText(value, withTime) {
@@ -481,6 +651,34 @@
      委員以為當天零時就截止（與院內頁 inviteDeadlineText 同一條規則） */
   function deadlineText(date) { return rocDateText(date, false); }
 
+  /* 開會時間確認首屏那一句：「原訂 115 年 10 月 13 日（星期二）的會議已取消。」
+     沒有取消的那一場回空字串（那一句整個不印）。
+     ＝院內頁 timeConfirmState.replyPageCancelledText */
+  function tcCancelledText(iso) {
+    var day = rocDateText(iso, false).replace(/^民國\s*/, "");
+    return day ? "原訂 " + day + "的會議已取消。" : "";
+  }
+
+  /* 開會時間確認的送出時間：「2026/10/08 14:20」，一律台北。
+     ＝院內頁 timeConfirmState.replyPageSubmittedText */
+  function tcSubmittedText(iso) {
+    var d = new Date(iso == null ? "" : iso);
+    if (isNaN(d.getTime())) return "";
+    try {
+      var parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).formatToParts(d);
+      var g = function (t) {
+        for (var i = 0; i < parts.length; i++) if (parts[i].type === t) return parts[i].value;
+        return "";
+      };
+      return g("year") + "/" + g("month") + "/" + g("day") + " " + g("hour") + ":" + g("minute");
+    } catch (e) {
+      return "";
+    }
+  }
+
   /* 「李有昇 06-2353535 分機 4977」→ 第一個空白之前當姓名、之後當電話；
      沒有空白就整串當姓名（只填姓名的案子照樣印得出來，只是沒有可點的電話）。
      與院內頁 splitInviteContact 同一條規則。 */
@@ -498,6 +696,8 @@
     var digits = function (s) { return String(s || "").replace(/\D/g, ""); };
     return "tel:" + digits(seg[0]) + (seg[1] ? "," + digits(seg[1]) : "");
   }
+
+  /* ══ PURE-FORMAT:END ══ */
 
   /* 出席費：**印得出來的正數才印**。invite_public_view 在 app_settings 沒有
      那一列時回 0，而「每次新臺幣 0 元」比不印還糟。 */
@@ -762,7 +962,219 @@
       });
   }
 
+  /* ══ TIME-CONFIRM:BEGIN ═════════════════════════════════════════════
+     開會時間確認模式（`&m=time`；決策者 2026-10-07，design 交接包-150）。
+
+     ⚠️ 這一段（到 TIME-CONFIRM:END）**只准呼叫 time_confirm_public_view／
+     time_confirm_public_reply**——意願調查那兩支函式、它的表單與送出，這裡一個都不碰。
+     名單已簽報核定：委員在這裡回「不克出席」只是這個時間不克，不是婉拒擔任。
+     scripts/test-invite-reply.mjs 會把這一段挖出來檢查。 */
+
+  var TC_TITLE = "開會時間確認｜國立成功大學醫學院附設醫院";
+  /* 過期頁「您點的是 ○○ 的確認信」那一格：函式在過期時不回舊時間，
+     與院內頁用同一個詞（timeConfirmState.STALE_TIME_TEXT） */
+  var TC_STALE_TEXT = "先前時間";
+  var TC_NOTE_MAX = 500;
+
+  /* view＝函式回的那一份；choice＝可以出席(true)／不克出席(false)／還沒選(null)；
+     editing＝回過了、按了「修改回覆」 */
+  var tc = { view: null, choice: null, editing: false, sending: false };
+
+  /* 把意願調查那一整塊從頁面上拿掉：這個模式下它不該存在（不是藏起來而已） */
+  function removeInviteForm() {
+    var el = $("main");
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  /* 連結無效（這個模式自己的版本：#main 已經不在了，不能用上面那支 showInvalid） */
+  function tcShowInvalid() {
+    show($("loading"), false);
+    show($("tc-main"), false);
+    show($("invalid"), true);
+  }
+
+  /* dl 的一列：有值才印，沒值整列藏起來（重畫時兩個方向都要設） */
+  function tcRow(dt, dd, value) {
+    if (value) dd.textContent = value;
+    show(dt, Boolean(value));
+    show(dd, Boolean(value));
+  }
+
+  function tcAnswerText(reply) { return reply === "yes" ? "可以出席" : "不克出席"; }
+
+  function tcPaintChoice() {
+    $("tc-yes").setAttribute("aria-pressed", String(tc.choice === true));
+    $("tc-no").setAttribute("aria-pressed", String(tc.choice === false));
+    // 還沒選＝備註與送出鈕都不存在（母版規則 4），不是 disabled
+    show($("tc-tail"), tc.choice !== null);
+  }
+
+  function tcPaint() {
+    var v = tc.view;
+    var contact = splitContact(v.contact);
+    var expired = v.expired === true;
+
+    show($("tc-expired"), expired);
+    show($("tc-brief"), !expired);
+    if (expired) {
+      /* 過期：只有這一張。不印新時間、不印舊回覆、不給選項（母版規則 7）——
+         就算資料裡夾帶了時間或回覆，這裡也一個都不讀 */
+      show($("tc-form"), false);
+      show($("tc-done"), false);
+      show($("tc-passed"), false);
+      $("tc-stale").textContent = TC_STALE_TEXT;
+      if (contact.name) $("tc-expired-contact").textContent = "有疑問請洽 發包小組 " + contact.name;
+      show($("tc-expired-contact"), Boolean(contact.name));
+      if (contact.phone) {
+        $("tc-expired-phone").textContent = contact.phone;
+        $("tc-expired-phone").setAttribute("href", telHref(contact.phone));
+      }
+      show($("tc-expired-phone"), Boolean(contact.phone));
+      return;
+    }
+
+    /* 首屏卡：標籤、案名案號、問候、原訂取消那一句、會議時間（粗體）／地點／期限／聯絡人 */
+    $("tc-case-name").textContent = v.caseName || "";
+    $("tc-member-name").textContent = v.memberName || "";
+    if (v.caseNumber) $("tc-case-no").textContent = v.caseNumber;
+    show($("tc-case-no"), Boolean(v.caseNumber));
+    var cancelled = tcCancelledText(v.cancelledMeetingAt);
+    if (cancelled) $("tc-cancelled").textContent = cancelled;
+    show($("tc-cancelled"), Boolean(cancelled));
+    $("tc-meeting").textContent = meetingText(v.meetingAt);
+    tcRow($("tc-dt-venue"), $("tc-venue"), v.venue || "");
+    var due = deadlineText(v.deadline);
+    tcRow($("tc-dt-deadline"), $("tc-deadline"), due ? due + "前" : "");
+    if (contact.name) $("tc-contact-name").textContent = "發包小組 " + contact.name;
+    show($("tc-contact-name"), Boolean(contact.name));
+    if (contact.phone) {
+      $("tc-contact-phone").textContent = contact.phone;
+      $("tc-contact-phone").setAttribute("href", telHref(contact.phone));
+    }
+    show($("tc-contact-phone"), Boolean(contact.phone));
+    show($("tc-dt-contact"), Boolean(contact.name || contact.phone));
+    show($("tc-contact"), Boolean(contact.name || contact.phone));
+
+    var replied = v.reply === "yes" || v.reply === "no";
+    var passed = v.meetingPassed === true;
+    var doneVisible = !passed && replied && !tc.editing;
+
+    /* 會議已過：看得到是哪一場與自己回過什麼，但不能再回覆 */
+    show($("tc-passed"), passed);
+    if (passed) {
+      $("tc-passed-text").textContent =
+        "這場會議的時間已經過了，這裡不能再回覆" +
+        (replied ? "；您先前的回覆是「" + tcAnswerText(v.reply) + "」" : "") +
+        "。如有疑問請洽本院承辦人。";
+    }
+
+    /* 已回覆（送出後、或重開連結）：已收到＋您的回覆＋送出時間＋修改回覆 */
+    show($("tc-done"), doneVisible);
+    if (replied) {
+      $("tc-done-answer").textContent = tcAnswerText(v.reply);
+      $("tc-done-at").textContent = tcSubmittedText(v.repliedAt) + " 送出";
+      show($("tc-done-remind"), v.reply === "yes");
+    }
+
+    show($("tc-form"), !passed && !doneVisible);
+    tcPaintChoice();
+  }
+
+  function tcSubmit() {
+    // 沒選就沒有送出鈕（#tc-tail 整塊 hidden），這裡只是收口；送出中不重送
+    if (tc.choice === null || tc.sending) return;
+    var btn = $("tc-submit");
+    var err = $("tc-error");
+    var canAttend = tc.choice === true;
+    var note = String($("tc-note").value || "").trim().slice(0, TC_NOTE_MAX);
+
+    tc.sending = true;
+    btn.disabled = true;
+    btn.textContent = "送出中…";
+    show(err, false);
+
+    /* 只送這三樣：權杖、能否出席、備註。誰能寫、什麼時候不能寫、寫哪幾格，
+       全在資料庫函式裡（它只動 time_confirm 的回覆那幾格） */
+    rpc("time_confirm_public_reply", { p_token: token, p_can_attend: canAttend, p_note: note })
+      .then(function (res) {
+        return res.json().catch(function () { return null; }).then(function (body) {
+          if (!res.ok || !body || typeof body !== "object") throw new Error("送出失敗，請稍後再試");
+          return body;
+        });
+      })
+      .then(function (body) {
+        if (body.ok === true) {
+          tc.view.reply = canAttend ? "yes" : "no";
+          tc.view.note = note;
+          tc.view.repliedAt = typeof body.repliedAt === "string" ? body.repliedAt : new Date().toISOString();
+          tc.editing = false;
+          tcPaint();
+          window.scrollTo(0, 0);
+          return;
+        }
+        /* 送出的當下才發現時間改了或會議已過（頁面開著放了一陣子）——
+           換成那一種畫面，不是在表單底下印一行紅字讓他再試 */
+        if (body.error === "expired") { tc.view.expired = true; tcPaint(); window.scrollTo(0, 0); return; }
+        if (body.error === "meeting_passed") { tc.view.meetingPassed = true; tcPaint(); window.scrollTo(0, 0); return; }
+        if (body.error === "not_found") { tcShowInvalid(); return; }
+        throw new Error("送出失敗，請稍後再試");
+      })
+      .catch(function (e) {
+        err.textContent = (e && e.message) || "送出失敗，請稍後再試";
+        show(err, true);
+      })
+      .then(function () {
+        tc.sending = false;
+        btn.disabled = false;
+        btn.textContent = "確認送出";
+      });
+  }
+
+  function tcBind() {
+    $("tc-yes").addEventListener("click", function () { tc.choice = true; tcPaintChoice(); });
+    $("tc-no").addEventListener("click", function () { tc.choice = false; tcPaintChoice(); });
+    // 修改回覆：表單從空的開始（與院內頁一樣，不預帶上次選的）
+    $("tc-edit").addEventListener("click", function () {
+      tc.editing = true;
+      tc.choice = null;
+      $("tc-note").value = "";
+      show($("tc-error"), false);
+      tcPaint();
+    });
+    $("tc-submit").addEventListener("click", tcSubmit);
+  }
+
+  function startTimeConfirm() {
+    document.title = TC_TITLE;
+    removeInviteForm();
+    // 形狀不對就不打了（與意願調查那一邊同一個理由）
+    if (!UUID_RE.test(token)) { tcShowInvalid(); return; }
+    rpc("time_confirm_public_view", { p_token: token })
+      .then(function (res) {
+        if (!res.ok) throw new Error("view failed");
+        return res.json();
+      })
+      .then(function (view) {
+        // 函式回 null＝找不到、不是外聘、沒答應出席、或還沒寄過確認信——一律同一句
+        if (!view || typeof view !== "object") throw new Error("not found");
+        tc.view = view;
+        tcBind();
+        tcPaint();
+        show($("loading"), false);
+        show($("tc-main"), true);
+      })
+      .catch(function () { tcShowInvalid(); });
+  }
+
+  /* ══ TIME-CONFIRM:END ══ */
+
   function start() {
+    /* **先看 m 再做別的**（決策者 2026-10-07）。下面這兩行之後才是意願調查：
+       不認得的 m 顯示連結無效、m=time 走開會時間確認——兩種都先把意願調查那一塊
+       從頁面上拿掉，而且到此為止（return），不會往下走到意願調查的讀取、綁定與送出。 */
+    if (isUnknownMode) { removeInviteForm(); tcShowInvalid(); return; }
+    if (isTimeMode) { startTimeConfirm(); return; }
+
     // 形狀不對就不打了：讓一個明顯無效的字串去敲函式只是白跑一趟
     if (!UUID_RE.test(token)) { showInvalid(); return; }
 
