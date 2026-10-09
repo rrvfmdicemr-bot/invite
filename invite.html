@@ -993,9 +993,17 @@
   var TC_TITLE = "開會時間確認｜國立成功大學醫學院附設醫院";
   var TC_NOTE_MAX = 500;
   /* 首屏問候句（母版規則 8）：有「原訂…的會議已取消。」那一句＝改期；沒有＝第一次排
-     （或第 2 次以後的招標沒留下取消快照）——中性句不會錯，改期句會 */
-  var TC_LEAD_RESCHEDULED = "本案評選委員會議改期，重新排定如下，敬請回覆能否出席。";
-  var TC_LEAD_SCHEDULED = "本案評選委員會議時間排定如下，敬請回覆能否出席。";
+     （或第 2 次以後的招標沒留下取消快照）——中性句不會錯，改期句會。
+     整句＝「本案」＋會議名＋下面兩段之一＋「，敬請回覆能否出席。」（與母版同一種組法） */
+  var TC_LEAD_RESCHEDULED = "改期，重新排定如下";
+  var TC_LEAD_SCHEDULED = "時間排定如下";
+  /* 會議名跟著這一案的用語（母版 committeeMeetingName；design 請code辦理第 16 節）：
+     view 的 meetingWord 只認「評選」「審查」「評審」三個值，其餘（函式還沒更新所以沒有
+     這個鍵、空的、別的字）一律當「評選」。評審案成立的是「評審小組」，不是委員會 */
+  function tcMeetingName(word) {
+    if (word === "評審") return "評審小組會議";
+    return (word === "審查" ? "審查" : "評選") + "委員會議";
+  }
   /* 送出失敗、**可以再試一次**的那兩句（母版規則 10 的錯誤槽）。
      與院內頁 InviteReplyPage 的 TIME_CONFIRM_ERROR_OFFLINE／_SERVER 逐字相同 */
   var TC_ERR_OFFLINE = "沒有送出：網路連線中斷，請再按一次確認送出。";
@@ -1069,7 +1077,7 @@
     show($("tc-case-no"), Boolean(v.caseNumber));
     var cancelled = tcCancelledText(v.cancelledMeetingAt);
     // 問候句跟著下面那一句走：印得出「原訂…已取消」才說改期（母版規則 8）
-    $("tc-lead").textContent = cancelled ? TC_LEAD_RESCHEDULED : TC_LEAD_SCHEDULED;
+    $("tc-lead").textContent = "本案" + tcMeetingName(v.meetingWord) + (cancelled ? TC_LEAD_RESCHEDULED : TC_LEAD_SCHEDULED) + "，敬請回覆能否出席。";
     if (cancelled) $("tc-cancelled").textContent = cancelled;
     show($("tc-cancelled"), Boolean(cancelled));
     $("tc-meeting").textContent = meetingText(v.meetingAt);
